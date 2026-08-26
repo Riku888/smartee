@@ -2,7 +2,9 @@
 name = "smartee"
 version = "0.1.0"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "pydantic>=2.13.4",
+]
 
 [dependency-groups]
 dev = [
@@ -22,3 +24,4 @@ extend-select = ["I", "UP"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "strict"
+pythonpath = ["."]
