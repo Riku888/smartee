@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# Enforces two Smartee repo rules (see CLAUDE.md / SECURITY.md):
+#   1. No direct commits to main for feature/development work.
+#   2. No committing likely secret/credential/browser-auth files.
+#
+# This hook only ever looks at staged FILE NAMES (git diff --cached --name-only).
+# It never reads file contents, and never sends anything to an LLM or network service.
+set -euo pipefail
+
+branch=$(git symbolic-ref --short HEAD 2>/dev/null || echo "HEAD")
+if [ "$branch" = "main" ]; then
+    echo "ERROR: direct commits to 'main' are not allowed." >&2
+    echo "Create a feature/fix/docs/refactor/test/chore branch instead." >&2
+    exit 1
+fi
+
+staged=$(git diff --cached --name-only --diff-filter=ACM)
+
+blocked_pattern='(^|/)(\.env(\..*)?|.*\.pem|.*\.key|id_rsa.*|credentials\.json|.*duo.*state.*|.*cookies.*\.json|.*storage[_-]state.*\.json)$'
+offending=$(echo "$staged" | grep -Ei "$blocked_pattern" || true)
+
+if [ -n "$offending" ]; then
+    echo "ERROR: commit blocked — likely secret/credential file(s) staged:" >&2
+    echo "$offending" | sed 's/^/  /' >&2
+    echo "See SECURITY.md for the list of things that must never be committed." >&2
+    exit 1
+fi
+
+exit 0
