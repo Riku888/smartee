@@ -12,3 +12,12 @@ credentials.json
 
 # OS / editor
 .DS_Store
+
+# Python toolchain (uv.lock IS committed; .venv and caches are not)
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
