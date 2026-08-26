@@ -1,0 +1,14 @@
+# Secrets / credentials (see SECURITY.md)
+.env
+.env.*
+*.pem
+*.key
+id_rsa*
+credentials.json
+*duo*state*
+*cookies*.json
+*storage-state*.json
+*storage_state*.json
+
+# OS / editor
+.DS_Store
