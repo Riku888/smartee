@@ -44,6 +44,33 @@ def _is_sensitive_query_key(key: str) -> bool:
     return any(substring in lowered for substring in _SENSITIVE_QUERY_KEY_SUBSTRINGS)
 
 
+# Extra terms that mark an attribute NAME or VALUE as credential/session/auth
+# related when captured from arbitrary DOM elements (recon attribute capture).
+# Kept separate from the URL query-key list above so URL sanitization behavior
+# is unchanged.
+_SENSITIVE_ATTR_SUBSTRINGS = (
+    *_SENSITIVE_QUERY_KEY_SUBSTRINGS,
+    "bearer",
+    "oauth",
+    "saml",
+    "cookie",
+    "csrf",
+    "nonce",
+    "duo",
+)
+
+
+def looks_sensitive(text: str) -> bool:
+    """True if `text` (an attribute name or value) contains a token that looks
+    credential/session/auth/token related.
+
+    Deterministic substring match, no network or inference. Used to redact
+    attribute captures before they are written to the local recon output.
+    """
+    lowered = text.lower()
+    return any(substring in lowered for substring in _SENSITIVE_ATTR_SUBSTRINGS)
+
+
 def _is_sso_url(parsed) -> bool:
     host = (parsed.hostname or "").lower()
     path = parsed.path.lower()
