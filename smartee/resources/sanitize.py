@@ -1,6 +1,10 @@
+import re
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 ALLOWED_SCHEMES = {"http", "https"}
+
+_CONTROL_CHARS = re.compile(r"[\x00-\x1f\x7f-\x9f]")
+_LABEL_MAX_LENGTH = 200
 
 _SENSITIVE_QUERY_KEY_SUBSTRINGS = (
     "token",
@@ -75,6 +79,20 @@ def sanitize_url(raw: str) -> str | None:
     ]
 
     return urlunparse(parsed._replace(query=urlencode(safe_query), fragment=""))
+
+
+def sanitize_label(text: str, *, max_length: int = _LABEL_MAX_LENGTH) -> str:
+    """Reduce untrusted anchor/link text to an inert one-line label.
+
+    Course-authored text is untrusted (Hard Rule 6, prompt-injection risk) and
+    can be personally identifying. Control characters are dropped, whitespace is
+    collapsed, and the result is length-capped so it is safe to place in logs or
+    JSON output. This is NOT sufficient sanitization for prompt context.
+    """
+    collapsed = " ".join(_CONTROL_CHARS.sub(" ", text).split())
+    if len(collapsed) > max_length:
+        collapsed = collapsed[:max_length].rstrip() + "…"
+    return collapsed
 
 
 def domain_of(url: str) -> str | None:
