@@ -20,7 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from playwright.sync_api import Page, sync_playwright
 
-from smartee.recon import build_link_record, sanitize_url
+from smartee.resources import build_link_record, sanitize_url
 
 DEFAULT_START_URL = "https://learningsuite.byu.edu/"
 DEFAULT_PROFILE_DIR = Path(".local/recon/browser-profile")

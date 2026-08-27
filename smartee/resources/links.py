@@ -1,8 +1,8 @@
 from typing import TypedDict
 from urllib.parse import urljoin
 
-from smartee.recon.classify import classify_source_type
-from smartee.recon.sanitize import domain_of, is_same_origin, sanitize_url
+from smartee.resources.classify import classify_source_type
+from smartee.resources.sanitize import domain_of, is_same_origin, sanitize_url
 
 
 class LinkRecord(TypedDict):

@@ -4,7 +4,7 @@ from playwright.sync_api import Page
 
 from scripts.recon_learning_suite import capture_page
 from smartee.domain.enums import SourceType
-from smartee.recon import (
+from smartee.resources import (
     build_link_record,
     classify_source_type,
     domain_of,
