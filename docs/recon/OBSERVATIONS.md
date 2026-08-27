@@ -83,6 +83,47 @@ Everything marked **UNKNOWN** was not exercised by this capture set.
   redacted here as course-identifying/personal; structure only is
   reported.
 
+## Course list / course switcher (VERIFIED / UNKNOWN)
+
+Direct evidence: a later capture set of the top-level Course List page and,
+separately, an in-course page whose course-selection menu was open. Source
+of `smartee/course/discovery.py`.
+
+- The course-selection menu is one component that appears in both places:
+  a `<button>` whose `aria-label` starts with "Show course selection menu"
+  (collapsed: "... No course selected", `aria-expanded="false"`; open:
+  "... Current course: <label>", `aria-expanded="true"`). Its course `<a>`
+  entries are in the DOM only while `aria-expanded="true"`.
+- In the open menu, each enrolled course is a single `<a>` with the course
+  label as visible text and a populated `href`. In the clean in-course
+  capture these hrefs classified as `learning_suite` (first time that type
+  appeared) with path shape
+  `/<session>/student/cid-<opaque-id>/student/home/dashboard`. The
+  `cid-<opaque-id>` segment is stable for the same course across captures
+  and contexts; the leading `<session>` segment (e.g. `.MjTJ`, prior
+  `.-ZL-`) is per-session and not durable identity.
+- The course `<a>` carries no `id`, no `data-course-*`, no per-course
+  `aria-*`; identity is only in the href path. `data-v-*` attributes are
+  Vue build-scoped style markers (empty values, shared), not identity.
+- Non-course menu links ("All Courses") resolve to paths without a
+  `/student/cid-<id>/` segment (`/student/student/top`), so they are
+  excluded structurally.
+- The top-level Course List page also renders each course as an `<a>`
+  (title) plus sibling "Go" `<a>`/`<button>`; that capture's `page.url` was
+  a `cas.byu.edu` redirect URL, so only its path shapes are trustworthy.
+  The clean in-course switcher capture is the source of truth.
+- UNKNOWN: whether available/published courses can be distinguished from
+  unavailable/unpublished ones. One course rendered differently on the
+  Course List (bare `<a>`, empty label, no "Go") but the meaning of that
+  variance was not established — no `disabled`/`aria-disabled`/"unavailable"
+  marker was observed. Not implemented; stays UNKNOWN (Hard Rule 2).
+- UNKNOWN: the interaction that expands the menu (no `aria-controls`, no
+  handler captured); whether the menu lists all enrolled courses or only
+  the current term's; the behavior on following a course entry (not
+  navigated). A course delivered on an external platform had a switcher
+  href straight to that host (no `cid-` in path) — such entries are not
+  discovered by the current contract.
+
 ## Course-content patterns (VERIFIED / UNKNOWN)
 
 - Content pages (`student/pages/...`) mix free-text headings with a large
