@@ -10,6 +10,9 @@ credentials.json
 *storage-state*.json
 *storage_state*.json
 
+# Local-only working data (recon output, browser profiles — never committed)
+.local/
+
 # OS / editor
 .DS_Store
 
