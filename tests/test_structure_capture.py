@@ -82,6 +82,30 @@ def test_signature_and_auth_identifiers_are_still_redacted():
     assert node["data_attributes"]["data-auth"] == REDACTED
 
 
+def test_time_datetime_attribute_is_kept():
+    # The `<time datetime>` value is the deterministic due-date signal on an
+    # assignments-list row; it must survive structural capture.
+    node = _node(tag="time", attrs={"datetime": "2026-09-15T23:59:00-06:00"})
+    assert node["attributes"]["datetime"] == "2026-09-15T23:59:00-06:00"
+
+
+def test_descendant_time_element_keeps_datetime():
+    container = _container(
+        [
+            {
+                "tag": "time",
+                "path": "/div[3]/span[1]/time[1]",
+                "text": "Sep 15",
+                "attrs": {"datetime": "2026-09-15", "style": "x"},
+            }
+        ]
+    )
+    (desc,) = container["descendants"]
+    assert desc["tag"] == "time"
+    assert desc["attributes"] == {"datetime": "2026-09-15"}
+    assert desc["text"] == "Sep 15"
+
+
 def test_node_redacts_sensitive_attribute_value_but_keeps_key():
     node = _node(attrs={"aria-label": "session-token abc123"})
     assert node["attributes"]["aria-label"] == REDACTED

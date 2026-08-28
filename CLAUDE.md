@@ -12,7 +12,11 @@ This points git at the repo-owned hooks in `.githooks/` (`core.hooksPath`), whic
 
 ## Project State
 
-Smartee ("Personal Learning OS") is currently in **Phase 0 (Reality Recon)** — design-only. There is no source code, no manifests, and no build/test/lint tooling yet. Do not assume `apps/`, `agents/`, `mcp/`, or other directories from ARCHITECTURE.md §34 exist — check before referencing paths. When the stack is actually created it will be Python 3.12 managed by `uv`.
+Smartee ("Personal Learning OS") is past initial recon. The stack exists: Python 3.12 managed by `uv`, with Ruff, ty, pytest, and GitHub Actions CI. The `smartee/` package holds deterministic building blocks (domain models, resource resolver, course entry resolver, course discovery, DOM/interactive recon structures), `scripts/` holds the Learning Suite reconnaissance tooling, and `tests/` covers them.
+
+Current work is the **Assignment Extractor** (evidence phase — see `SESSION_STATE.md`). Reconnaissance findings live in `docs/recon/OBSERVATIONS.md`.
+
+Only the directories that exist do — `smartee/{domain,course,resources}`, `scripts/`, `tests/`, `docs/`. Do not assume `apps/`, `agents/`, `mcp/`, or other directories from ARCHITECTURE.md §34 exist yet; check before referencing paths.
 
 ## Canonical Files
 
@@ -46,7 +50,7 @@ Smartee ("Personal Learning OS") is currently in **Phase 0 (Reality Recon)** —
 
 ## Git Workflow
 
-Branch naming: `feature/<short-description>`, `fix/<short-description>`, `docs/<short-description>`, `refactor/<short-description>`, `test/<short-description>`, `chore/<short-description>` (repo/tooling/dependency/CI/setup work).
+Branch naming: `<type>/<short-description>`, where `<type>` mirrors the Conventional Commits type — `feat/`, `fix/`, `docs/`, `refactor/`, `test/`, `chore/` (repo/tooling/dependency/CI/setup work).
 
 Commit messages: Conventional Commits (`feat:`, `fix:`, `test:`, `docs:`, `refactor:`, `chore:`).
 

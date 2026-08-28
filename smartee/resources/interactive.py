@@ -10,6 +10,9 @@ INTERACTIVE_SELECTOR = 'a, button, [role="button"]'
 
 # Structural attributes that are safe to record verbatim (after inert-label
 # sanitization). `href` is handled separately via the shared link logic.
+# `datetime` is the machine-readable value of a `<time>` element — the only
+# deterministic due-date signal on an assignments-list row (a bare ISO-ish
+# timestamp, never credential material).
 SAFE_ATTRIBUTE_NAMES: tuple[str, ...] = (
     "id",
     "role",
@@ -17,6 +20,7 @@ SAFE_ATTRIBUTE_NAMES: tuple[str, ...] = (
     "aria-controls",
     "aria-expanded",
     "type",
+    "datetime",
 )
 
 REDACTED = "[redacted]"
