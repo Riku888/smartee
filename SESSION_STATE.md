@@ -29,8 +29,21 @@ Assignment Extractor — v1 (assignments-list rows) implemented and tested.
   (never expanded).
 - Description **body text** — recon DOM walk stops before it
   (`#AssignmentDescription` came back empty); needs a walk-depth bump.
-- Pristine unchecked `Check off` row; locked `Opens <date>` rows; the `*`
+- Pristine unchecked `Check off` row; locked `Opens <date>` rows (control
+  is a `div` with no action word, so still not captured); the `*`
   superscript marker.
+- Direct `#assignmentsComponent` row enumeration (replace the
+  action-button ancestor-walk approach) — decide whether it is needed
+  after the next full capture.
+
+## Recently fixed
+
+- `MAX_ASSIGNMENT_ROWS` was 12; one real course has 26 rows, so 14 were
+  silently dropped. Raised to 150. Also added an
+  `assignments_component_present` snapshot flag (Exam List renders at the
+  same URL without `#assignmentsComponent`); the extractor uses it for
+  `is_assignment_list` when present. Re-capture needed to see the full
+  list.
 
 ## Next candidates
 
