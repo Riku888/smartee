@@ -21,6 +21,9 @@ class _FakePage:
     def query_selector_all(self, _selector: str) -> list:
         return []
 
+    def query_selector(self, _selector: str):
+        return None
+
     def title(self) -> str:
         return "Fake Title"
 
@@ -46,6 +49,12 @@ def test_capture_page_url_field_is_sanitized_for_sso_redirect():
 def test_capture_page_never_falls_back_to_raw_url():
     snapshot = capture_page(_fake_page("not a url at all"))
     assert snapshot["url"] == "UNKNOWN"
+
+
+def test_capture_page_includes_empty_assignment_evidence_fields():
+    snapshot = capture_page(_fake_page("https://learningsuite.byu.edu/x/student/home"))
+    assert snapshot["assignment_row_candidates"] == []
+    assert snapshot["assignment_detail_candidate"] is None
 
 
 def test_sanitize_url_strips_fragment():

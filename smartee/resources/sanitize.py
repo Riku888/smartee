@@ -48,7 +48,7 @@ def _is_sensitive_query_key(key: str) -> bool:
 # related when captured from arbitrary DOM elements (recon attribute capture).
 # Kept separate from the URL query-key list above so URL sanitization behavior
 # is unchanged.
-_SENSITIVE_ATTR_SUBSTRINGS = (
+_SENSITIVE_ATTR_TERMS = (
     *_SENSITIVE_QUERY_KEY_SUBSTRINGS,
     "bearer",
     "oauth",
@@ -59,16 +59,31 @@ _SENSITIVE_ATTR_SUBSTRINGS = (
     "duo",
 )
 
+# Split an identifier into tokens on camelCase, digit, and separator boundaries
+# ("data-assignment-id" -> assignment/id; "csrfToken" -> csrf/token;
+# "OAuth2" -> o/auth/2) so sensitive-term matching happens per token, not on
+# raw substrings ("sig" inside "assignment" must not match).
+_IDENT_TOKEN_RE = re.compile(r"[A-Z]+(?=[A-Z][a-z])|[A-Z]?[a-z]+|[A-Z]+|[0-9]+")
+
 
 def looks_sensitive(text: str) -> bool:
-    """True if `text` (an attribute name or value) contains a token that looks
-    credential/session/auth/token related.
+    """True if `text` (an attribute name or value) has a *token* that is, starts
+    with, or ends with a credential/session/auth term.
 
-    Deterministic substring match, no network or inference. Used to redact
-    attribute captures before they are written to the local recon output.
+    Token/boundary aware: `text` is first split on camelCase / digit / separator
+    boundaries, so a term only matches at a token edge. "authToken", "X-CSRF",
+    "signature", and a bare "jwt" are flagged; "assignment" and
+    "data-assignment-id" (which merely contain "sig") are not.
+
+    Deterministic, no network. URL query-key sanitization is unaffected — it
+    uses `_is_sensitive_query_key`, not this function.
     """
-    lowered = text.lower()
-    return any(substring in lowered for substring in _SENSITIVE_ATTR_SUBSTRINGS)
+    tokens = [match.group().lower() for match in _IDENT_TOKEN_RE.finditer(text)]
+    return any(
+        token.startswith(term) or token.endswith(term)
+        for token in tokens
+        for term in _SENSITIVE_ATTR_TERMS
+    )
 
 
 def _is_sso_url(parsed) -> bool:
