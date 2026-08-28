@@ -36,14 +36,24 @@ Assignment Extractor — v1 (assignments-list rows) implemented and tested.
   action-button ancestor-walk approach) — decide whether it is needed
   after the next full capture.
 
-## Recently fixed
+## Recently fixed / verified
 
-- `MAX_ASSIGNMENT_ROWS` was 12; one real course has 26 rows, so 14 were
-  silently dropped. Raised to 150. Also added an
-  `assignments_component_present` snapshot flag (Exam List renders at the
-  same URL without `#assignmentsComponent`); the extractor uses it for
-  `is_assignment_list` when present. Re-capture needed to see the full
-  list.
+- `MAX_ASSIGNMENT_ROWS` 12 → 150 (PR #11). Verified against a fresh capture:
+  the 26-row past-term course now extracts **26/26** rows, including
+  attendance rows and one `(Ungraded)` row.
+- `assignments_component_present` snapshot flag added (PR #11); extractor
+  uses it for `is_assignment_list`.
+- Extractor now reads a weight-only `…/div[6]` cell (`"0%"`, no `/`) as
+  grade weight with no weighted-earned value.
+
+## Still open for the extractor
+
+- `Show Course Homework ID` toggle — located in the DOM but not activated
+  in any capture; needs a capture with the toggle clicked.
+- Description **body text** — confirmed still not reaching the recon
+  descendant walk; needs a targeted `#AssignmentDescription` text capture
+  in the recon tool, then a re-capture.
+- Locked `Opens <date>` rows, `Check off` collapsed row, `*` / `§` markers.
 
 ## Next candidates
 
