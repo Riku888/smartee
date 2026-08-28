@@ -2,12 +2,14 @@
 
 Source: 20 read-only DOM snapshots captured with `scripts/recon_learning_suite.py`
 across 4 distinct courses, one authentication flow, and repeat visits to the
-same URLs. Raw capture JSON stays local (`.local/recon/output/`, gitignored)
-and is never quoted here — this file contains only sanitized structural
-findings. No course names, course codes, headings text, file names, or
-account/profile identifiers from the captures are reproduced below, since
-several captured headings, button labels, and a linked filename were
-personally identifying or course-private (Hard Rule 6 / `SECURITY.md`).
+same URLs, plus a later 10-snapshot set focused on one course's assignments
+list (see "Assignment-list row structure" below). Raw capture JSON stays local
+(`.local/recon/output/`, gitignored) and is never quoted here — this file
+contains only sanitized structural findings. No course names, course codes,
+headings text, file names, assignment titles, or account/profile identifiers
+from the captures are reproduced below, since several captured headings, button
+labels, assignment titles, and a linked filename were personally identifying or
+course-private (Hard Rule 6 / `SECURITY.md`).
 
 Everything marked **VERIFIED** was directly observed in the captures.
 Everything marked **UNKNOWN** was not exercised by this capture set.
@@ -82,6 +84,107 @@ Everything marked **UNKNOWN** was not exercised by this capture set.
   labeled with (term, course code, course title) as visible text. Content
   redacted here as course-identifying/personal; structure only is
   reported.
+
+## Assignment-list row structure (VERIFIED — two courses, two instructors)
+
+Source: 15 read-only snapshots across two courses' assignments lists
+(`student/home` and `student/home/assignments`) — one current-term course
+(all rows `Submit`, nothing graded) and one past-term course (rows
+`Completed` / `Closed`, graded), including snapshots with one row expanded.
+Structure only; all titles/dates/scores below are illustrative
+placeholders, not captured values. The positional layout below was
+identical in both courses.
+
+- The list is contained in `div#assignmentsComponent` (inside
+  `#mainContent > #mainPage > #fullLSPage`). The Exam List view can render
+  at the *same* `student/home/assignments` URL with **no**
+  `#assignmentsComponent` ancestor and an `Exam List` heading and per-row
+  `View` buttons — another instance of "same URL, different DOM". Presence
+  of `#assignmentsComponent` is the structural signal for "assignments
+  list is what's rendered".
+- Inside `#assignmentsComponent`: a controls block containing a
+  `Show Course Homework ID` toggle (`aria-expanded="false"` by default —
+  UNKNOWN what it reveals when expanded; likely the stable per-assignment
+  identifier that is otherwise absent, see below); then a **column-header
+  row** with the labels `Title`, `Due`, `Submission`, `Score`,
+  `% of Grade`, `Statistics` (preceded by an empty icon column); then the
+  rows, **grouped under category headers** (e.g. a `Homework` header
+  showing that category's `100%` weight).
+- Each row is a `div.border-b.border-gray1`. It carries **no `id`, no
+  `data-assignment-*`** — every `data-v-*` is an empty Vue scoped-style
+  marker. There is no per-assignment stable identifier in the row, and no
+  assignment-detail URL. Row identity is only (title text + due datetime +
+  list position).
+- Within a row the fields are **positional** (matching the column
+  headers above), not class- or attribute-labeled. Paths are relative to
+  the row's inner `div[1]` wrapper:
+  - `…/div[2]/span[1]` — title, plain text.
+  - `…/div[2]/span[2]/sup[1]/span[1]` — a `*` superscript on some rows.
+    Meaning UNKNOWN.
+  - `…/div[3]//time[1]` — due **date**. Its `datetime` attribute is an
+    absolute UTC ISO timestamp (e.g. `2026-11-15T06:59:00.000Z`) and is
+    authoritative: the element's visible text is a *local* date and can
+    differ from the UTC date by a day. `datetime` is now captured
+    (added to the recon structural-attribute allowlist).
+  - `…/div[3]//span[2]/time[1]` — due **time**, local, visible text only
+    (e.g. `11:59 pm`), no `datetime` attribute.
+  - `…/div[3]//span[2]/span[2]` — timezone abbreviation text (`MST` /
+    `MDT` observed).
+  - `…/div[4]/div[1]/(button|div)[1]` — the row action/status control:
+    `role="button"` with `aria-label` equal to the status word; the
+    visible label repeats in a child `div`. An actionable state renders
+    as `<button>` (`Submit`); a non-actionable state renders as `<div>`
+    (`Completed`, `Closed`). Status words observed across both courses:
+    `Submit`, `Completed`, `Closed` (and, from the earlier capture set,
+    `View`, `View/Submit`, `Feedback`, `Check off`).
+  - `…/div[5]/div[1]` — score cell. Graded rows: the cell's own text is
+    the **points possible** (e.g. `5.0`), a nested `<b>` is the **points
+    earned** (e.g. `0.0`), and a sibling `span` holds the `/` separator.
+    Ungraded rows: no `<b>`, just the points-possible text and `/`.
+  - `…/div[6]` — text of the form `earned /weight%`, e.g. `0 /6.67%`
+    (nothing earned) or `6.67 /6.67%` (full credit): weighted points
+    earned toward the final grade, then the assignment's grade **weight**
+    as a percent of the total.
+  - `…/div[7]/div[1]/i[2]` — a per-row `Statistics` control
+    (`<i role="img" aria-label="Statistics">`).
+- Expanding a row renders an extra `div[2]` **nested inside that same
+  `div.border-b.border-gray1` container** — so an expanded detail maps to
+  its row by DOM containment, deterministically, with no identifier
+  needed. The detail subtree contains:
+  - `ul > li#descriptionTab` ("Description"), `li#groupTab` ("Group"),
+    and a third unlabeled `li`.
+  - `div#descriptionBlock > div#AssignmentDescription` — the description
+    body; a `Due:` label appears here too.
+  - Its own `<button type="button">` controls whose label text
+    (`Check off`, `Submit`) sits in a child `div` — structurally distinct
+    from the list-row `role="button"` + `aria-label` control.
+  - Any resource link (observed: a `Download` `<a>` →
+    `…/plugins/Upload/fileDownload.php?fileId=<opaque>`, classified
+    `learning_suite`, same-origin) sits inside this subtree, so resource
+    links can be scoped to the expanded assignment.
+  - `descriptionTab` / `groupTab` / `descriptionBlock` /
+    `AssignmentDescription` are **singleton ids** — reused, so only one
+    row is expandable at a time; they are not per-assignment identifiers.
+- The dashboard (`student/home`) also lists rows with the same structure,
+  plus locked/future rows whose control is a `div` (no `aria-label`) with
+  text like `Opens Sep 2`. The recon row matcher keys on a fixed set of
+  action words and does **not** capture these locked rows. Their internal
+  structure is UNKNOWN.
+- An assignment can be tied to an exam: the past-term course had a row
+  whose expanded state showed a `View exam` link
+  (`…/student/exam/info/id-<token>` — an exam **does** have its own URL,
+  unlike an assignment detail) and an `Uncheck` button (the inverse of
+  `Check off`, on an already-checked item). No `#descriptionBlock` /
+  `#AssignmentDescription` subtree appeared for this course's expanded
+  row, so expanded-detail markup is not identical across courses; only
+  the collapsed row layout is confirmed identical.
+
+Still UNKNOWN for the assignment list: what `Show Course Homework ID`
+reveals (likely the stable per-assignment id), the collapsed structure of
+a row whose action is `Check off` (seen only as a control, never as a
+pristine unchecked list row), the structure of locked `Opens <date>`
+rows, the `*` superscript meaning, category-header markup details, and
+whether a third instructor keeps this layout.
 
 ## Course list / course switcher (VERIFIED / UNKNOWN)
 
