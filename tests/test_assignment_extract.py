@@ -170,6 +170,16 @@ def test_whole_percent_weight_cell():
     assert a.grade_weight_percent == 25.0
 
 
+def test_ungraded_row_weight_only_cell_and_empty_score():
+    # A genuinely ungraded assignment: "0%" (no "/") and an empty score cell.
+    row = _row(descendants=_row_descendants(points_possible="", weight_cell="0%"))
+    (a,) = extract_assignments(_observe(row)).assignments
+    assert a.points_possible is None
+    assert a.points_earned is None
+    assert a.weighted_points_earned is None
+    assert a.grade_weight_percent == 0.0
+
+
 # --- skip rules ----------------------------------------------------------
 
 

@@ -234,11 +234,15 @@ def _datetime_attr(descendants: Sequence[DescendantRecord]) -> str | None:
 
 
 def _weight_cell(text: str | None) -> tuple[float | None, float | None]:
-    """Split the `…/div[6]` cell (`"<weighted earned> /<weight>%"`) into
-    (weighted_points_earned, grade_weight_percent). Either side may be
-    unparseable, in which case that side is None."""
-    if not text or "/" not in text:
+    """Split the `…/div[6]` cell into (weighted_points_earned,
+    grade_weight_percent). The usual form is `"<weighted earned> /<weight>%"`
+    (`"6.67 /6.67%"`); a genuinely ungraded assignment shows just the weight
+    (`"0%"`, no `/`). Either side may be unparseable, in which case that side
+    is None."""
+    if not text:
         return (None, None)
+    if "/" not in text:
+        return (None, _parse_number(text))
     left, _, right = text.partition("/")
     return (_parse_number(left), _parse_number(right))
 

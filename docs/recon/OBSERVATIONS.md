@@ -141,12 +141,16 @@ identical in both courses.
     the **points possible** (e.g. `5.0`), a nested `<b>` is the **points
     earned** (e.g. `0.0`), and a sibling `span` holds the `/` separator.
     Ungraded rows: no `<b>`, just the points-possible text and `/`.
-  - `…/div[6]` — text of the form `earned /weight%`, e.g. `0 /6.67%`
-    (nothing earned) or `6.67 /6.67%` (full credit): weighted points
-    earned toward the final grade, then the assignment's grade **weight**
-    as a percent of the total.
+  - `…/div[6]` — usually `earned /weight%`, e.g. `0 /6.67%` (nothing
+    earned) or `6.67 /6.67%` (full credit): weighted points earned toward
+    the final grade, then the assignment's grade **weight** as a percent.
+    A genuinely ungraded assignment showed just `0%` here (no `/`, and an
+    empty `…/div[5]/div[1]` score cell) alongside a `(Ungraded)` marker in
+    `…/div[2]/span[2]`.
   - `…/div[7]/div[1]/i[2]` — a per-row `Statistics` control
     (`<i role="img" aria-label="Statistics">`).
+  - A `sup` superscript after the title (`…/div[2]/span[N]/sup[1]/span[1]`)
+    can hold `*` or `§`; meanings UNKNOWN.
 - Expanding a row renders an extra `div[2]` **nested inside that same
   `div.border-b.border-gray1` container** — so an expanded detail maps to
   its row by DOM containment, deterministically, with no identifier
@@ -174,17 +178,23 @@ identical in both courses.
   whose expanded state showed a `View exam` link
   (`…/student/exam/info/id-<token>` — an exam **does** have its own URL,
   unlike an assignment detail) and an `Uncheck` button (the inverse of
-  `Check off`, on an already-checked item). No `#descriptionBlock` /
-  `#AssignmentDescription` subtree appeared for this course's expanded
-  row, so expanded-detail markup is not identical across courses; only
-  the collapsed row layout is confirmed identical.
+  `Check off`, on an already-checked item).
+- A later capture of that same past-term course's full list returned **all
+  26 rows** (9 `Closed` + 17 `Completed`) once the recon row cap was
+  raised, confirming the collapsed-row layout holds across the whole list,
+  including attendance rows (`0%` weight) and one `(Ungraded)` row. The
+  expanded row in that capture again had `#descriptionBlock` /
+  `#AssignmentDescription` present but with **no body text reaching the
+  recon descendant walk** — the description body is deeper than the walk's
+  depth/node caps, so description text is still not captured.
 
 Still UNKNOWN for the assignment list: what `Show Course Homework ID`
-reveals (likely the stable per-assignment id), the collapsed structure of
-a row whose action is `Check off` (seen only as a control, never as a
-pristine unchecked list row), the structure of locked `Opens <date>`
-rows, the `*` superscript meaning, category-header markup details, and
-whether a third instructor keeps this layout.
+reveals (likely the stable per-assignment id — the toggle was located but
+not activated in a capture), the description **body text** (needs a
+targeted recon capture of `#AssignmentDescription`), the collapsed
+structure of a `Check off` row and of locked `Opens <date>` rows, the
+`*` / `§` superscript meanings, and whether a third instructor keeps this
+layout.
 
 ## Course list / course switcher (VERIFIED / UNKNOWN)
 
