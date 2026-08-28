@@ -15,21 +15,22 @@ from smartee.resources import (
 class _FakePage:
     """Minimal Playwright-Page double: only the surface capture_page reads."""
 
-    def __init__(self, url: str):
+    def __init__(self, url: str, *, present_selectors: set[str] | None = None):
         self.url = url
+        self._present = present_selectors or set()
 
     def query_selector_all(self, _selector: str) -> list:
         return []
 
-    def query_selector(self, _selector: str):
-        return None
+    def query_selector(self, selector: str):
+        return object() if selector in self._present else None
 
     def title(self) -> str:
         return "Fake Title"
 
 
-def _fake_page(url: str) -> Page:
-    return cast(Page, _FakePage(url))
+def _fake_page(url: str, *, present_selectors: set[str] | None = None) -> Page:
+    return cast(Page, _FakePage(url, present_selectors=present_selectors))
 
 
 def test_capture_page_url_field_is_sanitized_for_sso_redirect():
@@ -55,6 +56,15 @@ def test_capture_page_includes_empty_assignment_evidence_fields():
     snapshot = capture_page(_fake_page("https://learningsuite.byu.edu/x/student/home"))
     assert snapshot["assignment_row_candidates"] == []
     assert snapshot["assignment_detail_candidate"] is None
+    assert snapshot["assignments_component_present"] is False
+
+
+def test_capture_page_flags_assignments_component_when_present():
+    page = _fake_page(
+        "https://learningsuite.byu.edu/x/student/home/assignments",
+        present_selectors={"#assignmentsComponent"},
+    )
+    assert capture_page(page)["assignments_component_present"] is True
 
 
 def test_sanitize_url_strips_fragment():

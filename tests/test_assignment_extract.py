@@ -89,9 +89,12 @@ def _row(control=None, descendants=None, links=None):
     )
 
 
-def _observe(*rows, page_url=_PAGE, observed_at=None):
+def _observe(*rows, page_url=_PAGE, observed_at=None, component_present=None):
     return AssignmentListObservation(
-        rows=list(rows), page_url=page_url, observed_at=observed_at
+        rows=list(rows),
+        page_url=page_url,
+        observed_at=observed_at,
+        assignments_component_present=component_present,
     )
 
 
@@ -192,6 +195,26 @@ def test_exam_list_view_candidate_is_skipped():
 def test_container_none_is_skipped():
     row = AssignmentRowObservation(control=_control("Submit"), container=None)
     assert extract_assignments(_observe(row)).assignments == []
+
+
+# --- is_assignment_list flag -----------------------------------------------
+
+
+def test_component_flag_true_forces_is_assignment_list_even_with_no_rows():
+    result = extract_assignments(_observe(component_present=True))
+    assert result.is_assignment_list is True
+    assert result.assignments == []
+
+
+def test_component_flag_false_overrides_parsed_rows():
+    result = extract_assignments(_observe(_row(), component_present=False))
+    assert result.is_assignment_list is False
+    assert len(result.assignments) == 1
+
+
+def test_component_flag_none_falls_back_to_row_presence():
+    assert extract_assignments(_observe(_row())).is_assignment_list is True
+    assert extract_assignments(_observe()).is_assignment_list is False
 
 
 # --- lenient parsing / missing data ------------------------------------

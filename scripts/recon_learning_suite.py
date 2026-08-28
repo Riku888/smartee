@@ -54,7 +54,14 @@ ASSIGNMENT_ACTION_LABELS = frozenset(
     {"submit", "view", "view/submit", "completed", "closed", "feedback", "check off"}
 )
 ROW_ANCESTOR_LEVELS = 4
-MAX_ASSIGNMENT_ROWS = 12
+# One real course exposed 26 assignment rows (9 Closed + 17 Completed); the old
+# cap of 12 silently dropped the rest. Kept as a generous upper bound so one
+# snapshot's capture still cannot approach a full-DOM dump.
+MAX_ASSIGNMENT_ROWS = 150
+
+# The assignments-list view is rendered inside this element; the Exam List view
+# that can appear at the same URL is not (docs/recon/OBSERVATIONS.md).
+ASSIGNMENTS_COMPONENT_SELECTOR = "#assignmentsComponent"
 
 # Read-only bounded walk of an element's descendant *elements*: tag, a short
 # structural path, direct text-node text, class, and raw attributes. Reads only
@@ -129,6 +136,10 @@ def capture_page(page: Page) -> dict:
         "links": links,
         "buttons": buttons,
         "interactive_elements": interactive_elements,
+        "assignments_component_present": page.query_selector(
+            ASSIGNMENTS_COMPONENT_SELECTOR
+        )
+        is not None,
         "assignment_row_candidates": _assignment_row_candidates(page, current_url),
         "assignment_detail_candidate": _assignment_detail_candidate(page, current_url),
     }
@@ -309,12 +320,17 @@ def main() -> None:
                 break
             snapshot = capture_page(page)
             snapshots.append(snapshot)
+            component = (
+                "assignments component present"
+                if snapshot["assignments_component_present"]
+                else "no assignments component"
+            )
             print(
                 f"Captured: {snapshot['url']} "
                 f"({len(snapshot['links'])} links, {len(snapshot['buttons'])} buttons, "
                 f"{len(snapshot['interactive_elements'])} interactive elements, "
                 f"{len(snapshot['assignment_row_candidates'])} assignment-row "
-                "candidates)"
+                f"candidates, {component})"
             )
 
         context.close()

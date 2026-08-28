@@ -51,11 +51,19 @@ class AssignmentRowObservation:
 
 @dataclass(frozen=True)
 class AssignmentListObservation:
-    """A recon snapshot's assignment-row candidates for one page."""
+    """A recon snapshot's assignment-row candidates for one page.
+
+    `assignments_component_present` is the snapshot's
+    `assignments_component_present` flag (whether `#assignmentsComponent` was
+    in the DOM). When known it decides `is_assignment_list` directly — the
+    Exam List view renders at the same URL without that element. Leave it
+    `None` for older captures that predate the flag.
+    """
 
     rows: Sequence[AssignmentRowObservation]
     page_url: str
     observed_at: datetime | None = None
+    assignments_component_present: bool | None = None
 
 
 @dataclass(frozen=True)
@@ -98,10 +106,11 @@ class ExtractedAssignment:
 class AssignmentExtractionResult:
     """Result of one extraction pass.
 
-    `is_assignment_list` is False when no candidate row parsed to an
-    assignment — either the capture was of a different view (e.g. the Exam
-    List that renders at the same URL) or the list was empty. `assignments`
-    is then empty; that is not an error.
+    `is_assignment_list` reflects the snapshot's
+    `assignments_component_present` flag when it was recorded; otherwise it
+    falls back to "at least one candidate row parsed". False with an empty
+    `assignments` list is not an error — the capture was of a different view
+    (e.g. the Exam List at the same URL) or the list was genuinely empty.
     """
 
     is_assignment_list: bool
@@ -138,8 +147,13 @@ def extract_assignments(
         seen.add(key)
         assignments.append(extracted)
 
+    if observation.assignments_component_present is None:
+        is_assignment_list = bool(assignments)
+    else:
+        is_assignment_list = observation.assignments_component_present
+
     return AssignmentExtractionResult(
-        is_assignment_list=bool(assignments),
+        is_assignment_list=is_assignment_list,
         assignments=assignments,
     )
 
