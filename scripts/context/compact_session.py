@@ -5,22 +5,11 @@ from pathlib import Path
 
 from claude_to_contextforge import convert_transcript
 
+DEFAULT_CONTEXTFORGE = Path.home() / "context-forge" / ".venv" / "bin" / "contextforge"
 
-DEFAULT_CONTEXTFORGE = (
-    Path.home()
-    / "context-forge"
-    / ".venv"
-    / "bin"
-    / "contextforge"
-)
+DEFAULT_TRACE_OUTPUT = Path(".local/context/traces/latest.json")
 
-DEFAULT_TRACE_OUTPUT = Path(
-    ".local/context/traces/latest.json"
-)
-
-DEFAULT_COMPILED_OUTPUT = Path(
-    ".local/context/compiled/latest.json"
-)
+DEFAULT_COMPILED_OUTPUT = Path(".local/context/compiled/latest.json")
 
 
 def write_trace(
@@ -61,8 +50,7 @@ def run_command(command: list[str]) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(
         description=(
-            "Convert a Claude Code transcript and compile it "
-            "with ContextForge."
+            "Convert a Claude Code transcript and compile it with ContextForge."
         )
     )
 
@@ -106,20 +94,13 @@ def main() -> None:
     contextforge_path = args.contextforge.expanduser().resolve()
 
     if not transcript_path.is_file():
-        raise SystemExit(
-            f"Transcript not found: {transcript_path}"
-        )
+        raise SystemExit(f"Transcript not found: {transcript_path}")
 
     if not contextforge_path.is_file():
-        raise SystemExit(
-            f"ContextForge executable not found: "
-            f"{contextforge_path}"
-        )
+        raise SystemExit(f"ContextForge executable not found: {contextforge_path}")
 
     if args.budget <= 0:
-        raise SystemExit(
-            "--budget must be greater than zero."
-        )
+        raise SystemExit("--budget must be greater than zero.")
 
     item_count = write_trace(
         transcript_path,
@@ -134,10 +115,7 @@ def main() -> None:
     # In that case there is nothing useful to compile.
     if item_count == 0:
         print()
-        print(
-            "No durable conversation items found. "
-            "Skipping ContextForge."
-        )
+        print("No durable conversation items found. Skipping ContextForge.")
         return
 
     args.compiled_output.parent.mkdir(
@@ -167,9 +145,7 @@ def main() -> None:
 
     print()
     print("Context compaction complete.")
-    print(
-        f"Compiled: {args.compiled_output}"
-    )
+    print(f"Compiled: {args.compiled_output}")
 
 
 if __name__ == "__main__":

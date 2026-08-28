@@ -3,7 +3,6 @@ import json
 from pathlib import Path
 from typing import Any
 
-
 CONTEXT_USAGE_PREFIX = "## Context Usage"
 
 
@@ -69,10 +68,7 @@ def is_generated_meta_message(obj: dict[str, Any], content: str) -> bool:
 
     # Defensive fallback in case Claude Code emits this diagnostic
     # without setting isMeta in a future transcript version.
-    if content.startswith(CONTEXT_USAGE_PREFIX):
-        return True
-
-    return False
+    return content.startswith(CONTEXT_USAGE_PREFIX)
 
 
 def convert_record(obj: dict[str, Any]) -> list[dict[str, Any]]:
@@ -128,10 +124,7 @@ def convert_record(obj: dict[str, Any]) -> list[dict[str, Any]]:
                 if isinstance(text, str):
                     text = text.strip()
 
-                    if (
-                        text
-                        and not is_generated_meta_message(obj, text)
-                    ):
+                    if text and not is_generated_meta_message(obj, text):
                         normal_parts.append(text)
 
             elif block_type == "tool_result":
@@ -209,16 +202,13 @@ def convert_transcript(input_path: Path) -> dict[str, Any]:
 
             items.extend(convert_record(obj))
 
-    return {
-        "items": items 
-    }
+    return {"items": items}
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
         description=(
-            "Convert a Claude Code JSONL transcript "
-            "into a ContextForge trace."
+            "Convert a Claude Code JSONL transcript into a ContextForge trace."
         )
     )
 
@@ -240,14 +230,10 @@ def main() -> None:
     output_path = args.output.expanduser()
 
     if not transcript_path.exists():
-        raise SystemExit(
-            f"Transcript not found: {transcript_path}"
-        )
+        raise SystemExit(f"Transcript not found: {transcript_path}")
 
     if not transcript_path.is_file():
-        raise SystemExit(
-            f"Transcript is not a file: {transcript_path}"
-        )
+        raise SystemExit(f"Transcript is not a file: {transcript_path}")
 
     trace = convert_transcript(transcript_path)
 
