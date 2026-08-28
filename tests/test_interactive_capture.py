@@ -150,3 +150,34 @@ def test_looks_sensitive_matches_credential_session_auth_terms():
 def test_looks_sensitive_false_for_ordinary_structural_text():
     for text in ("course-id", "aria-expanded", "tab-index", "panel-3", "button"):
         assert looks_sensitive(text) is False
+
+
+def test_looks_sensitive_false_for_words_that_merely_contain_a_term():
+    # "assignment" contains the sensitive term "sig" as a bare substring; none
+    # of these are credential-related and none must be redacted.
+    for text in (
+        "assignment",
+        "data-assignment-id",
+        "assignments",
+        "reassignment",
+        "assignee",
+        "design",
+        "designation",
+    ):
+        assert looks_sensitive(text) is False
+
+
+def test_looks_sensitive_true_for_boundary_credential_terms():
+    for text in (
+        "sig",
+        "signature",
+        "x-signature",
+        "authToken",
+        "sessionId",
+        "session_token",
+        "csrfToken",
+        "api-token",
+        "oauth2",
+        "data-jwt",
+    ):
+        assert looks_sensitive(text) is True

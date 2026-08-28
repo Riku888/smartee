@@ -32,10 +32,35 @@ class InteractiveElementRecord(TypedDict):
     onclick: str | None
 
 
-def _redacted_value(name: str, value: str) -> str:
+def sanitize_attribute_value(name: str, value: str) -> str:
+    """Inert, local-only value for one structural attribute: `REDACTED` when the
+    attribute name or value looks credential/session/auth related, otherwise the
+    value reduced to an inert capped one-liner."""
     if looks_sensitive(name) or looks_sensitive(value):
         return REDACTED
     return sanitize_label(value)
+
+
+def build_safe_attributes(attributes: Mapping[str, str | None]) -> dict[str, str]:
+    """Keep only the known-safe structural attribute names, each sanitized."""
+    return {
+        name: sanitize_attribute_value(name, value)
+        for name in SAFE_ATTRIBUTE_NAMES
+        if (value := attributes.get(name)) is not None
+    }
+
+
+def build_data_attributes(
+    data_attributes: Mapping[str, str | None],
+) -> tuple[list[str], dict[str, str]]:
+    """Sorted `data-*` names (always recorded) and their sanitized values."""
+    names = sorted(name for name in data_attributes if name.startswith("data-"))
+    values = {
+        name: sanitize_attribute_value(name, value)
+        for name in names
+        if (value := data_attributes.get(name)) is not None
+    }
+    return names, values
 
 
 def build_interactive_element_record(
@@ -71,18 +96,8 @@ def build_interactive_element_record(
         else None
     )
 
-    safe_attributes = {
-        name: _redacted_value(name, value)
-        for name in SAFE_ATTRIBUTE_NAMES
-        if (value := attributes.get(name)) is not None
-    }
-
-    data_names = sorted(data_attributes)
-    data_values = {
-        name: _redacted_value(name, value if value is not None else "")
-        for name in data_names
-        if (value := data_attributes.get(name)) is not None
-    }
+    safe_attributes = build_safe_attributes(attributes)
+    data_names, data_values = build_data_attributes(data_attributes)
 
     return InteractiveElementRecord(
         tag=tag.strip().lower(),

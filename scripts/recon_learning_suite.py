@@ -24,8 +24,12 @@ from playwright.sync_api import Page, sync_playwright
 from smartee.resources import (
     INTERACTIVE_SELECTOR,
     SAFE_ATTRIBUTE_NAMES,
+    InteractiveElementRecord,
+    build_container_record,
     build_interactive_element_record,
     build_link_record,
+    build_node_record,
+    sanitize_label,
     sanitize_url,
 )
 
@@ -41,6 +45,51 @@ BUTTON_SELECTOR = "button, input[type=submit], input[type=button], [role=button]
 _ELEMENT_ATTRS_JS = (
     "e => Object.fromEntries(Array.from(e.attributes, a => [a.name, a.value]))"
 )
+
+# Visible action/status labels observed VERIFIED on real assignments-list rows
+# (docs/recon/OBSERVATIONS.md). Used only to locate candidate row containers to
+# capture for later human analysis — NOT a production selector contract, and no
+# control is ever clicked.
+ASSIGNMENT_ACTION_LABELS = frozenset(
+    {"submit", "view", "view/submit", "completed", "closed", "feedback", "check off"}
+)
+ROW_ANCESTOR_LEVELS = 4
+MAX_ASSIGNMENT_ROWS = 12
+
+# Read-only bounded walk of an element's descendant *elements*: tag, a short
+# structural path, direct text-node text, class, and raw attributes. Reads only
+# Element attributes and text nodes — never a value/property, never a handler.
+_DESCENDANT_WALK_JS = """
+el => {
+  const MAX = 90, MAX_DEPTH = 6;
+  const SKIP = new Set(
+    ['script', 'style', 'svg', 'input', 'textarea', 'select', 'option']
+  );
+  const out = [];
+  const walk = (node, path, depth) => {
+    if (depth > MAX_DEPTH) return;
+    const kids = node.children;
+    for (let i = 0; i < kids.length && out.length < MAX; i++) {
+      const c = kids[i];
+      const tag = c.tagName.toLowerCase();
+      const p = path + '/' + tag + '[' + (i + 1) + ']';
+      if (SKIP.has(tag)) continue;
+      let t = '';
+      for (const n of c.childNodes) { if (n.nodeType === 3) t += n.textContent + ' '; }
+      out.push({
+        tag: tag,
+        path: p,
+        text: t.trim(),
+        class: c.getAttribute('class') || '',
+        attrs: Object.fromEntries(Array.from(c.attributes, a => [a.name, a.value])),
+      });
+      walk(c, p, depth + 1);
+    }
+  };
+  walk(el, '', 0);
+  return out;
+}
+"""
 
 
 def capture_page(page: Page) -> dict:
@@ -80,10 +129,124 @@ def capture_page(page: Page) -> dict:
         "links": links,
         "buttons": buttons,
         "interactive_elements": interactive_elements,
+        "assignment_row_candidates": _assignment_row_candidates(page, current_url),
+        "assignment_detail_candidate": _assignment_detail_candidate(page, current_url),
     }
 
 
-def _capture_interactive_element(el, current_url: str) -> dict:
+def _norm_label(text: str) -> str:
+    return " ".join(text.split()).lower()
+
+
+def _parent_element(el):
+    """Parent element handle, or None. Reads `parentElement` only — no handler."""
+    return el.evaluate_handle("e => e.parentElement").as_element()
+
+
+def _ancestor_chain(el, levels: int) -> list:
+    """Up to `levels` ancestor element handles, innermost first."""
+    chain = []
+    current = el
+    for _ in range(levels):
+        parent = _parent_element(current)
+        if parent is None:
+            break
+        chain.append(parent)
+        current = parent
+    return chain
+
+
+def _capture_node(el) -> dict:
+    """Cheap structural record for one element: tag / class / safe attributes."""
+    raw_attrs = el.evaluate(_ELEMENT_ATTRS_JS)
+    tag = el.evaluate("e => e.tagName.toLowerCase()")
+    return dict(
+        build_node_record(
+            tag,
+            raw_attrs.get("class"),
+            attributes=raw_attrs,
+            data_attributes=raw_attrs,
+        )
+    )
+
+
+def _capture_container(el, current_url: str) -> dict:
+    """Bounded structural record for one candidate row/detail container: its own
+    attributes, its descendant elements' tag/path/text, plus links and
+    interactive controls routed through the shared sanitized builders. No
+    handler is executed; sanitization/capping lives in `build_container_record`.
+    """
+    raw_attrs = el.evaluate(_ELEMENT_ATTRS_JS)
+    node = build_node_record(
+        el.evaluate("e => e.tagName.toLowerCase()"),
+        raw_attrs.get("class"),
+        attributes=raw_attrs,
+        data_attributes=raw_attrs,
+    )
+    links = [
+        build_link_record(a.inner_text(), a.get_attribute("href") or "", current_url)
+        for a in el.query_selector_all("a[href]")
+    ]
+    interactive = [
+        _capture_interactive_element(i, current_url)
+        for i in el.query_selector_all(INTERACTIVE_SELECTOR)
+    ]
+    return dict(
+        build_container_record(
+            node,
+            descendants=el.evaluate(_DESCENDANT_WALK_JS),
+            links=links,
+            interactive=interactive,
+        )
+    )
+
+
+def _assignment_row_candidates(page: Page, current_url: str) -> list[dict]:
+    """For each control whose visible label matches a VERIFIED assignment
+    action/status word, record its ancestor trail (tag/class/attrs per level)
+    and one bounded structural capture of the outermost ancestor. Evidence for
+    deciding at which nesting level a row's title/due/points/weight text lives.
+    """
+    candidates: list[dict] = []
+    for control in page.query_selector_all(BUTTON_SELECTOR):
+        label = _norm_label(
+            control.inner_text() or control.get_attribute("value") or ""
+        )
+        if label not in ASSIGNMENT_ACTION_LABELS:
+            continue
+        chain = _ancestor_chain(control, ROW_ANCESTOR_LEVELS)
+        candidates.append(
+            {
+                "control": _capture_interactive_element(control, current_url),
+                "ancestor_nodes": [_capture_node(a) for a in chain],
+                "container": (
+                    _capture_container(chain[-1], current_url) if chain else None
+                ),
+            }
+        )
+        if len(candidates) >= MAX_ASSIGNMENT_ROWS:
+            break
+    return candidates
+
+
+def _assignment_detail_candidate(page: Page, current_url: str) -> dict | None:
+    """Structural capture around the first `h1` — meaningful only when the page
+    is showing a single expanded assignment. Records the heading's ancestor
+    trail and one bounded container capture so any id/`data-*`/href shared with
+    a list-row candidate can be found by hand.
+    """
+    heading = page.query_selector("h1")
+    if heading is None:
+        return None
+    chain = _ancestor_chain(heading, ROW_ANCESTOR_LEVELS)
+    return {
+        "heading_text": sanitize_label(heading.inner_text() or ""),
+        "ancestor_nodes": [_capture_node(a) for a in chain],
+        "container": _capture_container(chain[-1], current_url) if chain else None,
+    }
+
+
+def _capture_interactive_element(el, current_url: str) -> InteractiveElementRecord:
     """Read-only structural snapshot of one interactive element (`a`, `button`,
     `[role=button]`). Reads attribute text only — no click, no handler run.
 
@@ -104,7 +267,7 @@ def _capture_interactive_element(el, current_url: str) -> dict:
         name: value for name, value in raw_attrs.items() if name.startswith("data-")
     }
 
-    record = build_interactive_element_record(
+    return build_interactive_element_record(
         tag,
         label,
         current_url,
@@ -112,7 +275,6 @@ def _capture_interactive_element(el, current_url: str) -> dict:
         data_attributes=data_attributes,
         onclick=raw_attrs.get("onclick"),
     )
-    return dict(record)
 
 
 def main() -> None:
@@ -150,7 +312,9 @@ def main() -> None:
             print(
                 f"Captured: {snapshot['url']} "
                 f"({len(snapshot['links'])} links, {len(snapshot['buttons'])} buttons, "
-                f"{len(snapshot['interactive_elements'])} interactive elements)"
+                f"{len(snapshot['interactive_elements'])} interactive elements, "
+                f"{len(snapshot['assignment_row_candidates'])} assignment-row "
+                "candidates)"
             )
 
         context.close()
