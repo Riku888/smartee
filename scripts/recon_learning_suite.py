@@ -30,6 +30,7 @@ from smartee.resources import (
     build_link_record,
     build_node_record,
     sanitize_label,
+    sanitize_text_block,
     sanitize_url,
 )
 
@@ -62,6 +63,12 @@ MAX_ASSIGNMENT_ROWS = 150
 # The assignments-list view is rendered inside this element; the Exam List view
 # that can appear at the same URL is not (docs/recon/OBSERVATIONS.md).
 ASSIGNMENTS_COMPONENT_SELECTOR = "#assignmentsComponent"
+
+# When an assignment row is expanded, its description body lives here — deeper
+# than the bounded descendant walk reaches, so it is captured directly (read
+# only, `.inner_text()`) and passed through `sanitize_text_block` (untrusted
+# course-authored text, Hard Rule 6). Local `.local/` evidence only.
+DESCRIPTION_BLOCK_SELECTOR = "#AssignmentDescription, #descriptionBlock"
 
 # Read-only bounded walk of an element's descendant *elements*: tag, a short
 # structural path, direct text-node text, class, and raw attributes. Reads only
@@ -212,6 +219,18 @@ def _capture_container(el, current_url: str) -> dict:
     )
 
 
+def _description_text(el) -> str | None:
+    """Sanitized text of the expanded assignment's description block, if this
+    element contains one. Read-only `.inner_text()`; no handler runs."""
+    if el is None:
+        return None
+    block = el.query_selector(DESCRIPTION_BLOCK_SELECTOR)
+    if block is None:
+        return None
+    text = sanitize_text_block(block.inner_text() or "")
+    return text or None
+
+
 def _assignment_row_candidates(page: Page, current_url: str) -> list[dict]:
     """For each control whose visible label matches a VERIFIED assignment
     action/status word, record its ancestor trail (tag/class/attrs per level)
@@ -226,13 +245,15 @@ def _assignment_row_candidates(page: Page, current_url: str) -> list[dict]:
         if label not in ASSIGNMENT_ACTION_LABELS:
             continue
         chain = _ancestor_chain(control, ROW_ANCESTOR_LEVELS)
+        outermost = chain[-1] if chain else None
         candidates.append(
             {
                 "control": _capture_interactive_element(control, current_url),
                 "ancestor_nodes": [_capture_node(a) for a in chain],
                 "container": (
-                    _capture_container(chain[-1], current_url) if chain else None
+                    _capture_container(outermost, current_url) if outermost else None
                 ),
+                "description_text": _description_text(outermost),
             }
         )
         if len(candidates) >= MAX_ASSIGNMENT_ROWS:
@@ -250,10 +271,12 @@ def _assignment_detail_candidate(page: Page, current_url: str) -> dict | None:
     if heading is None:
         return None
     chain = _ancestor_chain(heading, ROW_ANCESTOR_LEVELS)
+    outermost = chain[-1] if chain else None
     return {
         "heading_text": sanitize_label(heading.inner_text() or ""),
         "ancestor_nodes": [_capture_node(a) for a in chain],
-        "container": _capture_container(chain[-1], current_url) if chain else None,
+        "container": _capture_container(outermost, current_url) if outermost else None,
+        "description_text": _description_text(outermost),
     }
 
 

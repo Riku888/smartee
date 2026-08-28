@@ -22,6 +22,7 @@ from smartee.resources.sanitize import (
     is_same_origin,
     looks_sensitive,
     sanitize_label,
+    sanitize_text_block,
     sanitize_url,
 )
 from smartee.resources.structure import (
@@ -58,5 +59,6 @@ __all__ = [
     "resolve_resources",
     "sanitize_attribute_value",
     "sanitize_label",
+    "sanitize_text_block",
     "sanitize_url",
 ]

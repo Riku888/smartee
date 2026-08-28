@@ -20,7 +20,12 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
 
-from smartee.resources.sanitize import domain_of, sanitize_label, sanitize_url
+from smartee.resources.sanitize import (
+    domain_of,
+    sanitize_label,
+    sanitize_text_block,
+    sanitize_url,
+)
 from smartee.resources.structure import ContainerStructureRecord, DescendantRecord
 
 # Row-cell positions, relative to a row's inner wrapper, confirmed against the
@@ -39,14 +44,17 @@ _WEIGHT_CELL_SUFFIX = "/div[6]"
 class AssignmentRowObservation:
     """One captured assignments-list row candidate.
 
-    `control` and `container` are exactly the `assignment_row_candidates[i]`
-    sub-objects from a recon snapshot (`control` is the matched action/status
-    element; `container` is the bounded structural capture of its row, or
-    `None` when the walk found no ancestor to capture).
+    `control`, `container`, and `description_text` are exactly the
+    `assignment_row_candidates[i]` sub-objects from a recon snapshot
+    (`control` is the matched action/status element; `container` is the
+    bounded structural capture of its row, or `None` when the walk found no
+    ancestor to capture; `description_text` is the expanded row's description
+    body when it was open at capture time, else `None`).
     """
 
     control: dict
     container: ContainerStructureRecord | None
+    description_text: str | None = None
 
 
 @dataclass(frozen=True)
@@ -98,6 +106,7 @@ class ExtractedAssignment:
     points_earned: float | None
     grade_weight_percent: float | None
     weighted_points_earned: float | None
+    description: str | None
     resource_links: list[str]
     provenance: AssignmentExtractionProvenance
 
@@ -194,6 +203,7 @@ def _extract_row(
         points_earned=_parse_number(earned_raw),
         grade_weight_percent=weight_percent,
         weighted_points_earned=weighted_earned,
+        description=_description(row.description_text),
         resource_links=_resource_links(container),
         provenance=provenance,
     )
@@ -253,6 +263,14 @@ def _parse_number(text: str | None) -> float | None:
         return float(cleaned)
     except ValueError:
         return None
+
+
+def _description(text: str | None) -> str | None:
+    """Re-sanitize the recon capture's description block (idempotent defence in
+    depth — the value is still untrusted course-authored text)."""
+    if not text:
+        return None
+    return sanitize_text_block(text) or None
 
 
 def _resource_links(container: ContainerStructureRecord) -> list[str]:

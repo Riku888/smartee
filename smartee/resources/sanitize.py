@@ -4,7 +4,11 @@ from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 ALLOWED_SCHEMES = {"http", "https"}
 
 _CONTROL_CHARS = re.compile(r"[\x00-\x1f\x7f-\x9f]")
+# Same, but keeps newline (\x0a) and tab (\x09) so a multi-line block survives.
+_CONTROL_CHARS_KEEP_BREAKS = re.compile(r"[\x00-\x08\x0b-\x1f\x7f-\x9f]")
+_BLANK_LINE_RUN = re.compile(r"\n\s*\n(\s*\n)+")
 _LABEL_MAX_LENGTH = 200
+_TEXT_BLOCK_MAX_LENGTH = 4000
 
 _SENSITIVE_QUERY_KEY_SUBSTRINGS = (
     "token",
@@ -135,6 +139,25 @@ def sanitize_label(text: str, *, max_length: int = _LABEL_MAX_LENGTH) -> str:
     if len(collapsed) > max_length:
         collapsed = collapsed[:max_length].rstrip() + "…"
     return collapsed
+
+
+def sanitize_text_block(text: str, *, max_length: int = _TEXT_BLOCK_MAX_LENGTH) -> str:
+    """Multi-line variant of `sanitize_label` for a block of untrusted
+    course-authored text (e.g. an assignment description).
+
+    Keeps line breaks (so structure survives) but strips every other control
+    character, trims each line, collapses runs of blank lines to one, and caps
+    total length. Like `sanitize_label` this is safe for logs / local JSON
+    output but is NOT sufficient sanitization for prompt context.
+    """
+    lines = [
+        " ".join(_CONTROL_CHARS_KEEP_BREAKS.sub(" ", line).split())
+        for line in text.splitlines()
+    ]
+    cleaned = _BLANK_LINE_RUN.sub("\n\n", "\n".join(lines).strip())
+    if len(cleaned) > max_length:
+        cleaned = cleaned[:max_length].rstrip() + "…"
+    return cleaned
 
 
 def domain_of(url: str) -> str | None:
