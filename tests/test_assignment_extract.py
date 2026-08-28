@@ -79,13 +79,14 @@ def _row_descendants(
     return out
 
 
-def _row(control=None, descendants=None, links=None):
+def _row(control=None, descendants=None, links=None, description_text=None):
     return AssignmentRowObservation(
         control=control if control is not None else _control("Submit"),
         container=_container(
             descendants if descendants is not None else _row_descendants(),
             links=links,
         ),
+        description_text=description_text,
     )
 
 
@@ -117,6 +118,7 @@ def test_submit_row_ungraded():
     assert a.points_earned is None
     assert a.grade_weight_percent == 4.17
     assert a.weighted_points_earned == 0.0
+    assert a.description is None
     assert a.resource_links == []
     assert a.provenance.observed_at == at
     assert a.provenance.page_domain == "learningsuite.byu.edu"
@@ -276,6 +278,18 @@ def test_page_url_is_sanitized_in_provenance():
     assert a.provenance.page_url is not None
     assert "sessionToken" not in a.provenance.page_url
     assert "abc123" not in a.provenance.page_url
+
+
+def test_description_from_expanded_row_is_sanitized():
+    row = _row(description_text="Read chapters 3-4.\n\n\n\nSubmit a one-page memo.")
+    (a,) = extract_assignments(_observe(row)).assignments
+    assert a.description == "Read chapters 3-4.\n\nSubmit a one-page memo."
+
+
+def test_description_absent_is_none():
+    assert extract_assignments(_observe(_row())).assignments[0].description is None
+    blank = _row(description_text="   \n\n  ")
+    assert extract_assignments(_observe(blank)).assignments[0].description is None
 
 
 def test_resource_links_read_from_expanded_container():
