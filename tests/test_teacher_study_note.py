@@ -23,6 +23,7 @@ _ASSIGNMENT = Assignment(
 
 
 def _stub(monkeypatch):
+    monkeypatch.delenv("SMARTEE_NOTE_LANGUAGE", raising=False)
     calls: dict = {}
 
     def fake_generate(system, prompt, *, config):
@@ -73,8 +74,25 @@ def test_study_note_carries_provenance(monkeypatch):
     assert note.course_id == "cid-x"
     assert note.title == "Lab 4: Firewall/VPN"
     assert note.model == "claude-sonnet-5"
+    assert note.language == "en"
     assert note.generated_at == at
     assert note.markdown.startswith("## What this is really asking")
+
+
+def test_japanese_language_uses_japanese_headings_and_env(monkeypatch):
+    calls = _stub(monkeypatch)
+    note = build_study_note(_ASSIGNMENT, language="ja")
+    assert note.language == "ja"
+    assert "この課題が本当に求めていること" in calls["system"]
+    assert "Write the entire note in Japanese" in calls["system"]
+
+    monkeypatch.setenv("SMARTEE_NOTE_LANGUAGE", "ja")
+    assert build_study_note(_ASSIGNMENT).language == "ja"
+
+
+def test_unknown_language_falls_back_to_english(monkeypatch):
+    _stub(monkeypatch)
+    assert build_study_note(_ASSIGNMENT, language="fr").language == "en"
 
 
 def test_llm_unavailable_propagates(monkeypatch):

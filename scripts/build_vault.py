@@ -66,6 +66,7 @@ def _rows(snapshot: dict) -> list[AssignmentRowObservation]:
             control=candidate["control"],
             container=candidate.get("container"),
             description_text=candidate.get("description_text"),
+            described_assignment_title=candidate.get("described_assignment_title"),
         )
         for candidate in snapshot.get("assignment_row_candidates", [])
     ]

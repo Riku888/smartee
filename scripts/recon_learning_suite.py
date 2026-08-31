@@ -242,19 +242,45 @@ def _capture_container(el, current_url: str) -> dict:
     )
 
 
+# Given a description block, read the title of the assignments-list row it is
+# nested in (the first span in the enclosing `.border-b.border-gray1`). When a
+# row is expanded, the row's own action control and its description panel are
+# captured as separate candidates, so this is how the two are linked back
+# together for the extractor.
+_ROW_TITLE_JS = """
+b => {
+  const row = b.closest('.border-b.border-gray1');
+  if (!row) return null;
+  const span = row.querySelector('span');
+  return span ? span.textContent.trim() : null;
+}
+"""
+
+
 def _description_text(el) -> str | None:
-    """Sanitized text of the expanded assignment's description block, if this
-    element contains one. Read-only `.inner_text()`; no handler runs."""
+    text, _ = _description_block(el)
+    return text
+
+
+def _description_fields(el) -> dict:
+    text, row_title = _description_block(el)
+    return {"description_text": text, "described_assignment_title": row_title}
+
+
+def _description_block(el) -> tuple[str | None, str | None]:
+    """`(sanitized description text, enclosing row title)` for the expanded
+    assignment's description block within `el`, or `(None, None)`. Read-only."""
     if el is None:
-        return None
+        return (None, None)
     for selector in DESCRIPTION_BLOCK_SELECTORS:
         block = el.query_selector(selector)
         if block is None:
             continue
         text = sanitize_text_block(block.inner_text() or "")
         if text:
-            return text
-    return None
+            row_title = block.evaluate(_ROW_TITLE_JS)
+            return (text, sanitize_label(row_title) if row_title else None)
+    return (None, None)
 
 
 def _assignment_row_candidates(page: Page, current_url: str) -> list[dict]:
@@ -282,7 +308,7 @@ def _assignment_row_candidates(page: Page, current_url: str) -> list[dict]:
                         if outermost
                         else None
                     ),
-                    "description_text": _description_text(outermost),
+                    **_description_fields(outermost),
                 }
             )
         except PlaywrightError as exc:

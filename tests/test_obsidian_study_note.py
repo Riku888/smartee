@@ -13,6 +13,7 @@ _NOTE = StudyNote(
     title="Lab 4: Firewall/VPN",
     markdown="## What this is really asking\n\nConfigure a VPN.\n",
     model="claude-opus-5",
+    language="en",
     generated_at=datetime(2026, 8, 31, 12, 0, tzinfo=UTC),
 )
 
@@ -24,10 +25,21 @@ def test_render_has_ai_frontmatter_and_notice():
     assert "ai_generated: true" in md
     assert "assignment_id: cid-x:abc123" in md
     assert "model: claude-opus-5" in md
+    assert "language: en" in md
     assert "generated: 2026-08-31T12:00:00+00:00" in md
     assert "# Lab 4: Firewall/VPN" in md
     assert "AI-generated study aid" in md
     assert "## What this is really asking" in md
+
+
+def test_render_japanese_note_uses_japanese_notice():
+    note = replace(
+        _NOTE, language="ja", markdown="## この課題が本当に求めていること\n\nVPN。"
+    )
+    md = render_study_note(note)
+    assert "language: ja" in md
+    assert "AI が生成した学習補助" in md
+    assert "## この課題が本当に求めていること" in md
 
 
 def test_render_generated_none_is_null():
@@ -37,6 +49,7 @@ def test_render_generated_none_is_null():
         title="T",
         markdown="## x",
         model="m",
+        language="en",
         generated_at=None,
     )
     assert "generated: null" in render_study_note(note)

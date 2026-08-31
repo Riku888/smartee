@@ -16,9 +16,10 @@ a later step pairs these rows with course context to build
 `smartee.domain.models.Assignment` records.
 """
 
+import re
 from collections.abc import Sequence
-from dataclasses import dataclass
-from datetime import datetime
+from dataclasses import dataclass, replace
+from datetime import UTC, datetime, timedelta
 
 from smartee.resources.sanitize import (
     domain_of,
@@ -55,6 +56,7 @@ class AssignmentRowObservation:
     control: dict
     container: ContainerStructureRecord | None
     description_text: str | None = None
+    described_assignment_title: str | None = None
 
 
 @dataclass(frozen=True)
@@ -156,6 +158,8 @@ def extract_assignments(
         seen.add(key)
         assignments.append(extracted)
 
+    assignments = _attach_orphan_descriptions(assignments, observation.rows)
+
     if observation.assignments_component_present is None:
         is_assignment_list = bool(assignments)
     else:
@@ -164,6 +168,107 @@ def extract_assignments(
     return AssignmentExtractionResult(
         is_assignment_list=is_assignment_list,
         assignments=assignments,
+    )
+
+
+# A description panel's first line is "Due: <Mon> <D> <h>:<mm> <am|pm> <TZ>".
+_DUE_LINE = re.compile(
+    r"Due:\s*([A-Z][a-z]{2})\s+(\d{1,2})\s+(\d{1,2}):(\d{2})\s*(am|pm)\s*([A-Z]{2,4})"
+)
+_MONTHS = {
+    m: i
+    for i, m in enumerate(
+        (
+            "Jan",
+            "Feb",
+            "Mar",
+            "Apr",
+            "May",
+            "Jun",
+            "Jul",
+            "Aug",
+            "Sep",
+            "Oct",
+            "Nov",
+            "Dec",
+        ),
+        start=1,
+    )
+}
+# BYU is Mountain Time; only these appear in the captures.
+_TZ_OFFSET_HOURS = {"MDT": -6, "MST": -7}
+
+
+def _attach_orphan_descriptions(
+    assignments: list[ExtractedAssignment],
+    rows: Sequence[AssignmentRowObservation],
+) -> list[ExtractedAssignment]:
+    """When a row was expanded at capture time, its description panel and its
+    list row are captured as separate candidates. Re-attach a description that
+    did not land on a titled assignment: first by the row title the recon
+    recorded for it, else by matching the panel's "Due:" line to an
+    assignment's `due_at_utc`. Only fills a description that is still empty.
+    """
+    by_index = {i: a for i, a in enumerate(assignments)}
+    by_title = {_norm(a.title): i for i, a in enumerate(assignments)}
+
+    for row in rows:
+        text = row.description_text
+        if not text:
+            continue
+        if any(a.description == text for a in assignments):
+            continue  # already attached to its own titled row
+
+        target = by_title.get(_norm(row.described_assignment_title or ""))
+        if target is None:
+            target = _match_by_due_line(text, assignments)
+        if target is None or by_index[target].description:
+            continue
+        by_index[target] = replace(by_index[target], description=text)
+
+    return list(by_index.values())
+
+
+def _norm(text: str) -> str:
+    return " ".join(text.split()).lower()
+
+
+def _match_by_due_line(
+    description: str, assignments: Sequence[ExtractedAssignment]
+) -> int | None:
+    match = _DUE_LINE.search(description)
+    if match is None:
+        return None
+    mon, day, hour12, minute, ampm, tz = match.groups()
+    if mon not in _MONTHS or tz not in _TZ_OFFSET_HOURS:
+        return None
+    hour = int(hour12) % 12 + (12 if ampm == "pm" else 0)
+    try:
+        local = datetime(2000, _MONTHS[mon], int(day), hour, int(minute), tzinfo=UTC)
+    except ValueError:
+        return None
+    wanted_utc = local - timedelta(hours=_TZ_OFFSET_HOURS[tz])
+
+    hits = [
+        i
+        for i, a in enumerate(assignments)
+        if not a.description and _same_month_day_time(a.due_at_utc, wanted_utc)
+    ]
+    return hits[0] if len(hits) == 1 else None
+
+
+def _same_month_day_time(due_at_utc: str | None, wanted: datetime) -> bool:
+    if not due_at_utc:
+        return False
+    try:
+        got = datetime.fromisoformat(due_at_utc)
+    except ValueError:
+        return False
+    return (got.month, got.day, got.hour, got.minute) == (
+        wanted.month,
+        wanted.day,
+        wanted.hour,
+        wanted.minute,
     )
 
 

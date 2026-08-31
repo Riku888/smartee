@@ -9,37 +9,73 @@ explanation, an approach, and self-check questions, and is always marked
 The assignment description is untrusted course-authored text (Hard Rule 6 /
 SECURITY.md). The system prompt fixes the policy and the description is
 passed inside a delimited block that the prompt names as inert data.
+
+Output language is configurable via `SMARTEE_NOTE_LANGUAGE` (default `en`;
+`ja` for Japanese).
 """
 
+import os
 from dataclasses import dataclass
 from datetime import datetime
 
 from smartee.domain.models import Assignment
 from smartee.llm import LlmConfig, generate
 
-_SYSTEM_PROMPT = """\
+_LANGUAGE_ENV = "SMARTEE_NOTE_LANGUAGE"
+
+# Section headings per language. The order is the contract; the model is told
+# to use these exact strings so the note structure is stable across languages.
+_SECTIONS: dict[str, list[str]] = {
+    "en": [
+        "What this is really asking",
+        "Concepts you need first",
+        "Suggested approach",
+        "Common mistakes",
+        "Check yourself",
+        "Action",
+    ],
+    "ja": [
+        "この課題が本当に求めていること",
+        "先に必要な概念",
+        "進め方",
+        "よくあるミス",
+        "自己確認",
+        "アクション",
+    ],
+}
+
+_LANGUAGE_NAME = {"en": "English", "ja": "Japanese"}
+
+
+def _resolved_language(language: str | None) -> str:
+    lang = (language or os.environ.get(_LANGUAGE_ENV, "") or "en").lower()
+    return lang if lang in _SECTIONS else "en"
+
+
+def _system_prompt(language: str) -> str:
+    sections = _SECTIONS[language]
+    headings = "\n".join(f"## {name}" for name in sections)
+    first, action, check = sections[0], sections[5], sections[4]
+    return f"""\
 You help a university student genuinely understand and complete a specific \
 assignment. Reconstruct the assignment into the clearest possible path to \
 doing it well — do not merely restate or summarize it.
 
-Write a Markdown study note with exactly these sections, in this order, each \
-an `##` heading:
+Write the entire note in {_LANGUAGE_NAME[language]}.
 
-## What this is really asking
-## Concepts you need first
-## Suggested approach
-## Common mistakes
-## Check yourself
-## Action
+Write a Markdown study note with exactly these sections, in this order, using \
+these exact `##` headings:
 
-"Suggested approach" is a numbered list of concrete steps. "Check yourself" \
-is 3-5 active-recall questions. "Action" is a Markdown checkbox list \
+{headings}
+
+"{sections[2]}" is a numbered list of concrete steps. "{check}" is 3-5 \
+active-recall questions. "{action}" is a Markdown checkbox list \
 (`- [ ] ...`) of the concrete tasks to complete the assignment; never \
-include "submit" as an action step.
+include a "submit" step.
 
 Rules:
-- Output only the note body, starting with `## What this is really asking`. \
-No preamble, no closing remarks, no top-level `#` heading.
+- Output only the note body, starting with `## {first}`. No preamble, no \
+closing remarks, no top-level `#` heading.
 - Use only facts present in the assignment. Do not invent due dates, point \
 values, required file counts, or submission mechanics. If something needed \
 is not stated, say so plainly.
@@ -61,6 +97,7 @@ class StudyNote:
     title: str
     markdown: str
     model: str
+    language: str
     generated_at: datetime | None
 
 
@@ -68,18 +105,21 @@ def build_study_note(
     assignment: Assignment,
     *,
     config: LlmConfig | None = None,
+    language: str | None = None,
     now: datetime | None = None,
 ) -> StudyNote:
     """Generate a study note for `assignment`. Propagates `LlmUnavailable`
     from `smartee.llm.generate` when the model cannot be reached."""
     settings = config or LlmConfig()
-    body = generate(_SYSTEM_PROMPT, _render_prompt(assignment), config=settings)
+    lang = _resolved_language(language)
+    body = generate(_system_prompt(lang), _render_prompt(assignment), config=settings)
     return StudyNote(
         assignment_id=assignment.id,
         course_id=assignment.course_id,
         title=assignment.title,
         markdown=body,
         model=settings.resolved_model(),
+        language=lang,
         generated_at=now,
     )
 
