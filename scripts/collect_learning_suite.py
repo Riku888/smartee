@@ -77,12 +77,29 @@ def _pick_page(context) -> Page:
     return context.pages[0] if context.pages else context.new_page()
 
 
+# Structural containers Learning Suite always renders once the SPA has
+# hydrated (OBSERVATIONS.md). `page.goto` returns on an empty shell, so we
+# wait for one of these before capturing.
+_CONTENT_READY = "#assignmentsComponent, #fullLSPage, #mainContent, h1, [role=button]"
+
+
+def _await_content(page: Page) -> None:
+    """Wait for the SPA to render real content, then a short grace for Vue to
+    finish populating it."""
+    try:
+        page.wait_for_selector(_CONTENT_READY, timeout=15_000, state="attached")
+    except PlaywrightTimeout:
+        pass
+    page.wait_for_timeout(1_500)
+
+
 def _goto(page: Page, url: str) -> None:
     try:
         page.goto(url, wait_until="domcontentloaded", timeout=_NAV_TIMEOUT_MS)
     except (PlaywrightError, PlaywrightTimeout):
         pass
     _settle(page)
+    _await_content(page)
 
 
 def _wait_for_login(page: Page, start_url: str) -> bool:
@@ -126,8 +143,22 @@ def _expand_course_switcher(page: Page) -> None:
         print(f"  (could not expand the course switcher: {str(exc).splitlines()[0]})")
 
 
-def _discover_once(page: Page) -> list:
+def _cid_link_count(snapshot: dict) -> int:
+    return sum(
+        1
+        for e in snapshot["interactive_elements"]
+        if e["tag"] == "a"
+        and e.get("link")
+        and "/student/cid-" in (e["link"].get("href") or "")
+    )
+
+
+def _discover_once(page: Page, debug_snapshots: list[dict]) -> list:
+    """One discovery attempt. The raw capture is kept in `debug_snapshots` so
+    a thin or empty result can be inspected after the run."""
     snapshot = capture_page(page)
+    snapshot["collector_snapshot_kind"] = "course_menu"
+    debug_snapshots.append(snapshot)
     result = discover_courses(
         CourseMenuObservation(
             elements=snapshot["interactive_elements"],
@@ -135,34 +166,44 @@ def _discover_once(page: Page) -> list:
             observed_at=datetime.now(UTC),
         )
     )
+    print(
+        f"  (menu page: {len(snapshot['interactive_elements'])} interactive, "
+        f"{_cid_link_count(snapshot)} course links, "
+        f"{len(result.courses)} discovered)"
+    )
     return list(result.courses)
 
 
-def _discover(page: Page, start_url: str, *, allow_manual: bool) -> list:
+def _discover(
+    page: Page, start_url: str, debug_snapshots: list[dict], *, allow_manual: bool
+) -> list:
     """Discover courses from the course-selection menu. Tries an automatic
     toggle click first; falls back to asking the human to open the menu."""
     _expand_course_switcher(page)
-    courses = _discover_once(page)
-    if courses:
+    courses = _discover_once(page, debug_snapshots)
+    if len(courses) > 1:
         return courses
 
-    # Maybe we drifted off the Course List page — go back and try once more.
+    # Thin or empty — maybe we drifted off the Course List page, or the menu
+    # needs a moment. Go back and try once more.
     _goto(page, start_url)
     _expand_course_switcher(page)
-    courses = _discover_once(page)
-    if courses or not allow_manual:
+    retried = _discover_once(page, debug_snapshots)
+    courses = retried if len(retried) >= len(courses) else courses
+    if len(courses) > 1 or not allow_manual:
         return courses
 
     labels = sorted({b["label"] for b in capture_page(page)["buttons"]})
     print(
-        "\nThe course-selection menu did not expand automatically.\n"
+        f"\nOnly {len(courses)} course(s) found automatically.\n"
         f"Buttons seen on the page: {', '.join(labels) or '(none)'}\n"
-        "Open the course menu manually in the browser (so the course list is "
-        "visible), then press Enter (or 'quit')."
+        "Open the course menu manually in the browser so the full course list "
+        "is visible, then press Enter (or 'quit' to go with what we have)."
     )
     if input("> ").strip().lower() == "quit":
-        return []
-    return _discover_once(page)
+        return courses
+    manual = _discover_once(page, debug_snapshots)
+    return manual if len(manual) >= len(courses) else courses
 
 
 def _target_assignments_url(page: Page, entry_url: str) -> str | None:
@@ -188,6 +229,7 @@ def _capture_assignments(page: Page, url: str) -> dict | None:
             print(f"  (navigation failed: {str(exc).splitlines()[0]})")
             return None
         _settle(page)
+        _await_content(page)
         sleep_between_navigations()
         try:
             snapshot = capture_page(page)
@@ -256,9 +298,13 @@ def main() -> None:
             context.close()
             return
 
-        courses = _discover(page, args.start_url, allow_manual=True)
+        courses = _discover(page, args.start_url, snapshots, allow_manual=True)
+        persist()
         if not courses:
-            print("No courses discovered from the switcher menu. Nothing to do.")
+            print(
+                "No courses discovered from the switcher menu. "
+                f"Menu snapshot(s) saved to {out_path} for analysis."
+            )
             context.close()
             return
         print(f"Discovered {len(courses)} course(s).")
