@@ -15,6 +15,7 @@ from datetime import datetime
 from smartee.course.bundle import CourseBundle
 from smartee.domain.models import Assignment, MaterialManifestEntry
 from smartee.obsidian.naming import course_stem, safe_stem
+from smartee.planner import RankedAssignment
 from smartee.teacher import StudyNote
 
 _GENERATED_NOTICE = (
@@ -163,6 +164,67 @@ def render_study_note(note: StudyNote) -> str:
             "",
         ]
     )
+
+
+_TODAY_NOTICE = (
+    "> Auto-generated priority view across all courses. Ranked by deadline "
+    "urgency and grade weight — a provisional formula, regenerated on each "
+    "run. Only assignments that still need submitting appear here."
+)
+
+
+def render_today(ranked: list[RankedAssignment], generated_at: datetime | None) -> str:
+    """Full Markdown for `00 Dashboard/Today.md` — one cross-course table of
+    the student's actionable assignments, most urgent first."""
+    frontmatter = "\n".join(
+        [
+            "---",
+            "type: dashboard",
+            "generated: true",
+            f"updated: {_iso(generated_at)}",
+            f"actionable: {len(ranked)}",
+            "---",
+        ]
+    )
+    lines = [
+        frontmatter,
+        "",
+        "# Today",
+        "",
+        _TODAY_NOTICE,
+        "",
+        _today_table(ranked),
+        "",
+    ]
+    return "\n".join(lines)
+
+
+def _today_table(ranked: list[RankedAssignment]) -> str:
+    if not ranked:
+        return "_Nothing actionable — every assignment with a submission is done._"
+    header = (
+        "| # | Priority | Due (UTC) | Assignment | Course | Why |\n"
+        "|---|---|---|---|---|---|"
+    )
+    rows = [_today_row(i, r) for i, r in enumerate(ranked, start=1)]
+    return "\n".join([header, *rows])
+
+
+def _today_row(n: int, r: RankedAssignment) -> str:
+    cells = [
+        str(n),
+        f"{r.score:.2f}",
+        _due(r.assignment.due_at),
+        _assignment_link(r.assignment.title),
+        _course_link(r.course_label, r.course_id),
+        _cell(r.reason),
+    ]
+    return "| " + " | ".join(cells) + " |"
+
+
+def _course_link(label: str | None, course_id: str) -> str:
+    stem = course_stem(label, course_id)
+    return f"[[{stem}\\|{_cell(label or course_id)}]]"
 
 
 # --- formatting helpers -------------------------------------------------

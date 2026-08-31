@@ -7,14 +7,15 @@ Delete or rewrite entries here as work moves on.
 
 ## Current phase
 
-Roadmap #6 — Teacher (first LLM feature) — is **working end to end**:
-recon captures → deterministic pipeline → Obsidian vault, plus AI study
-notes per assignment that has a captured description. Runs via
-`scripts/build_vault.py --vault <path> [--study-notes]`.
+Phase 1 (vertical slice) is **complete**: recon captures → deterministic
+pipeline → Obsidian vault, AI study notes per assignment with a captured
+description, and a cross-course `00 Dashboard/Today.md` priority view.
+Runs via `scripts/build_vault.py --vault <path> [--study-notes]`.
 
-Next: the **Collector** (roadmap toward #3/#12) — Playwright navigation
-that produces the recon JSON automatically instead of the manual
-`scripts/recon_learning_suite.py` press-Enter loop.
+Next: Phase 2 — the **Collector** (Playwright read-only navigation that
+produces the recon JSON automatically instead of the manual
+`scripts/recon_learning_suite.py` press-Enter loop) and material
+downloads / diff detection.
 
 ## Deterministic pipeline (verified against real captures, 5 courses)
 
@@ -41,6 +42,14 @@ that produces the recon JSON automatically instead of the manual
 - `smartee/course/discovery.py` / `entry.py` — deterministic course
   enumeration from an expanded course-switcher menu, and course-entry
   href resolution. Not yet driven by anything (the Collector will).
+- `smartee/planner/priority.py` — `rank_actionable(bundles, *, now,
+  horizon_days=None)` → `list[RankedAssignment]`, most urgent first.
+  Actionable = has a submission action and no score yet. Score =
+  `0.7*urgency + 0.3*impact`; urgency is bucketed by days-to-due, impact
+  is `grade_weight/100` (unknown → 0.3); overdue is a tier above
+  everything on time. Deliberately simple and **provisional** — §16.1
+  says don't let an LLM invent the weights, OPEN_QUESTIONS #9 stays open.
+  Every ranked item carries its own numbers + a human `reason`.
 
 ## Teacher / LLM
 
@@ -72,23 +81,33 @@ that produces the recon JSON automatically instead of the manual
   note's frontmatter back-links `course: "[[<course folder note>]]"`.
 - `smartee/obsidian/naming.py` — `course_stem` / `safe_stem`: one place
   that maps a title to its filename and its wikilink target so they match.
+- `render_today(ranked, generated_at)` / `write_today(ranked, vault_dir)`
+  → `00 Dashboard/Today.md`: one cross-course table (priority, due,
+  assignment link, course link, why), `type: dashboard` frontmatter.
 - `smartee/obsidian/vault.py` — `write_course_overview` →
   `01 Courses/<course>/<course>.md` (folder-note pattern; deletes a stale
-  `Course Overview.md`); `write_study_note` → `02 Assignments/<title>.md`.
-  Filesystem adapter, overwrites generated files in place, touches nothing
-  else.
+  `Course Overview.md`); `write_study_note` → `02 Assignments/<title>.md`;
+  `write_today` → `00 Dashboard/Today.md`. Filesystem adapter, overwrites
+  generated files in place, touches nothing else.
 - `scripts/build_vault.py` — reads every `.local/recon/output/*.json`,
-  runs the pipeline, writes one course note per course; `--study-notes`
-  loads `.env` and adds one study note per assignment with a description.
+  runs the pipeline, writes one course note per course + `Today.md`;
+  `--study-notes` loads `.env` and adds one study note per assignment with
+  a description.
 
 ### Verified end to end (2026-08-31, real vault)
 
 Vault: `/mnt/c/Users/rikut/OneDrive - Brigham Young University/Documents/
 Smartee` (name "Smartee", OneDrive-synced). `build_vault.py --study-notes`
 wrote 4 course notes + 3 Japanese deep study notes (CYBER 467 ×2, IT&C 293
-×1). IT&C 366 / ME EN 475 have no captured assignment descriptions yet, so
-no study notes for them. Graph connects each course to its assignment
-notes.
+×1) + `Today.md`. IT&C 366 / ME EN 475 have no captured assignment
+descriptions yet, so no study notes for them. Graph connects each course
+to its assignment notes.
+
+`Today.md` ranked 22 actionable assignments: CYBER 467 (14 "Submit",
+TryHackMe Registration at #1 — the real next deadline) + ME EN 475 (8
+"Submit", all undated in the old capture, so score ≈ 0). IT&C 293 / 366
+captures are from a finished-term state (all Completed/Closed, scored), so
+nothing from them is actionable — correct.
 
 Known vault-side wrinkle: clicking an unresolved `[[link]]` in Obsidian
 creates the note at the "default location for new notes" (currently the
@@ -113,8 +132,12 @@ different DOM". Old pre-`datetime` captures render with `Due: —`.
   ask for this capture again.
 - Quiz / grade / discussion page DOM structure — never visited
   (`OPEN_QUESTIONS.md` #1).
-- Prioritizer / Combined Schedule / Grade Summary — cross-course pages,
-  empty pre-semester; capture once the term is live.
+- `Today.md` follow-ups: a `This Week.md` / `Semester.md` split (the
+  `horizon_days` param already exists), and tuning the urgency/impact
+  formula against real usage (OPEN_QUESTIONS #9). The undated ME EN 475
+  tail sits at score ≈ 0 until a fresh capture gives it due dates.
+- Learning Suite Combined Schedule / Grade Summary / Prioritizer pages —
+  cross-course, empty pre-semester; capture once the term is live.
 - Enumerating every content page of a course (some content pages expose
   the section `<a>` hrefs); Schedule page week/row structure;
   per-material real filenames (resolve at acquisition).
@@ -129,5 +152,6 @@ navigation tool, not an unattended loop — it still ends in a human-run
 
 ## Operational state
 
-On `main` at PR #27 (deep study notes + course/note linking). No open
-PRs. Working branch: `docs/post-27-cleanup`.
+`main` is at PR #27 (deep study notes + course/note linking). Open PRs:
+#28 `docs/post-27-cleanup` (SESSION_STATE refresh + notice text), and the
+`feat/today-dashboard` PR stacked on it (planner + `Today.md`).
