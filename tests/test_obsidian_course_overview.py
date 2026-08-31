@@ -129,9 +129,20 @@ def test_course_folder_name_falls_back_to_course_id():
 def test_write_course_overview_creates_file(tmp_path):
     path = write_course_overview(_bundle(), tmp_path)
     assert path == course_overview_path(_bundle(), tmp_path)
+    # folder-note pattern: file name == folder name == course
+    assert path.name == "Defensive Cybersecurity.md"
     assert path.parent.name == "Defensive Cybersecurity"
     assert path.parent.parent.name == "01 Courses"
     assert path.read_text(encoding="utf-8").startswith("---\n")
+
+
+def test_write_course_overview_removes_legacy_file(tmp_path):
+    folder = course_overview_path(_bundle(), tmp_path).parent
+    folder.mkdir(parents=True)
+    legacy = folder / "Course Overview.md"
+    legacy.write_text("old")
+    write_course_overview(_bundle(), tmp_path)
+    assert not legacy.exists()
 
 
 def test_write_course_overview_overwrites(tmp_path):
