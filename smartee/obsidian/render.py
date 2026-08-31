@@ -26,12 +26,14 @@ _STUDY_NOTE_NOTICE = {
     "en": (
         "> AI-generated study aid — not course material. The assignment's "
         "facts (due date, points, weight) live in the Course Overview; this "
-        "note only adds explanation and an approach, and may be wrong."
+        "note teaches the concepts and works a practice example on invented "
+        "data, and may be wrong. It is not your graded deliverable."
     ),
     "ja": (
         "> AI が生成した学習補助であり、コース教材ではありません。締切・点数・"
-        "重みは Course Overview が正、このノートは説明と進め方を足すだけで、"
-        "間違っている可能性があります。"
+        "重みは Course Overview が正。このノートは概念を解説し、架空データで"
+        "練習例を解くもので、間違っている可能性があります。あなたの提出物では"
+        "ありません。"
     ),
 }
 
