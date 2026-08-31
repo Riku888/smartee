@@ -7,9 +7,29 @@ Delete or rewrite entries here as work moves on.
 
 ## Current phase
 
-End-to-end pipeline runnable: `scripts/build_vault.py --vault <path>` reads
-`.local/recon/output/*.json` → per-course `Course Overview.md`. Roadmap
-#1–#3(pure) + #5 done.
+Roadmap #6 — Teacher (first LLM feature). Assignment → AI study note.
+Roadmap #1–#3(pure) + #5 done; `scripts/build_vault.py --vault <path>`
+runs the deterministic pipeline into the vault.
+
+## Teacher / LLM (new)
+
+- `smartee/llm/` — `generate(system, prompt, config=…)`, one-shot Anthropic
+  call. Model is `SMARTEE_TEACHER_MODEL` → default `claude-opus-5`
+  (D-022). Adaptive thinking. `LlmUnavailable` on missing SDK / creds /
+  refusal — deterministic layers never touch this (Hard Rule 3).
+- `smartee/teacher/` — `build_study_note(Assignment) -> StudyNote`.
+  Pedagogical reconstruction (D-008), source facts vs AI enrichment kept
+  separate (D-009); the untrusted description is passed inside an
+  `<assignment_content>` block the system prompt names as inert data
+  (Hard Rule 6). Sections: what it asks / concepts / approach / mistakes /
+  check yourself / action.
+- `smartee/obsidian/{render,vault}` — `render_study_note` /
+  `write_study_note` → `02 Assignments/<title>.md`, `ai_generated: true`
+  frontmatter + notice.
+- `anthropic>=1.2` added to deps. **No credentials configured in this
+  env** (`ANTHROPIC_API_KEY` unset, no `ant`); tests mock the client. The
+  user sets a key to actually run it; `SMARTEE_TEACHER_MODEL=claude-sonnet-5`
+  for ~5× cheaper.
 
 The user's real vault: `/mnt/c/Users/rikut/OneDrive - Brigham Young
 University/Documents/Smartee` (name "Smartee", OneDrive-synced). Notes were
