@@ -14,7 +14,7 @@ from smartee.teacher import StudyNote
 
 _COURSES_DIR = "01 Courses"
 _ASSIGNMENTS_DIR = "02 Assignments"
-_OVERVIEW_FILENAME = "Course Overview.md"
+_LEGACY_OVERVIEW_FILENAME = "Course Overview.md"
 _UNSAFE = re.compile(r"[^A-Za-z0-9 _-]+")
 
 
@@ -32,17 +32,22 @@ def course_folder_name(bundle: CourseBundle) -> str:
 
 
 def course_overview_path(bundle: CourseBundle, vault_dir: Path) -> Path:
-    return (
-        Path(vault_dir) / _COURSES_DIR / course_folder_name(bundle) / _OVERVIEW_FILENAME
-    )
+    """`01 Courses/<course>/<course>.md` — the folder-note pattern, so the
+    file tab and graph node read as the course name, not "Course Overview"."""
+    folder = course_folder_name(bundle)
+    return Path(vault_dir) / _COURSES_DIR / folder / f"{folder}.md"
 
 
 def write_course_overview(bundle: CourseBundle, vault_dir: Path) -> Path:
     """Render and write the course's overview note, creating parent folders.
+    Removes a stale `Course Overview.md` left by an earlier version.
     Returns the written path."""
     path = course_overview_path(bundle, vault_dir)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(render_course_overview(bundle), encoding="utf-8")
+    legacy = path.parent / _LEGACY_OVERVIEW_FILENAME
+    if legacy.exists() and legacy != path:
+        legacy.unlink()
     return path
 
 
