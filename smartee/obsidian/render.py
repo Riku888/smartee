@@ -14,10 +14,17 @@ from datetime import datetime
 
 from smartee.course.bundle import CourseBundle
 from smartee.domain.models import Assignment, MaterialManifestEntry
+from smartee.teacher import StudyNote
 
 _GENERATED_NOTICE = (
     "> Auto-generated from Learning Suite reconnaissance. Facts only — "
     "regenerated on each run, safe to leave untouched."
+)
+
+_STUDY_NOTE_NOTICE = (
+    "> AI-generated study aid — not course material. The assignment's facts "
+    "(due date, points, weight) live in the Course Overview; this note only "
+    "adds explanation and an approach, and may be wrong."
 )
 
 
@@ -105,6 +112,35 @@ def _materials_section(materials: list[MaterialManifestEntry]) -> str:
         for m in materials
     ]
     return "\n".join(["## Materials", "", header, *rows])
+
+
+def render_study_note(note: StudyNote) -> str:
+    """Full Markdown for `02 Assignments/<title>.md` — an AI-generated study
+    note wrapped with provenance frontmatter and an "AI-generated" notice."""
+    frontmatter = "\n".join(
+        [
+            "---",
+            "type: study-note",
+            "ai_generated: true",
+            f"assignment_id: {note.assignment_id}",
+            f"course_id: {note.course_id}",
+            f"model: {note.model}",
+            f"generated: {_iso(note.generated_at)}",
+            "---",
+        ]
+    )
+    return "\n".join(
+        [
+            frontmatter,
+            "",
+            f"# {note.title}",
+            "",
+            _STUDY_NOTE_NOTICE,
+            "",
+            note.markdown.strip(),
+            "",
+        ]
+    )
 
 
 # --- formatting helpers -------------------------------------------------

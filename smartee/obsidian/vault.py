@@ -9,11 +9,18 @@ import re
 from pathlib import Path
 
 from smartee.course.bundle import CourseBundle
-from smartee.obsidian.render import render_course_overview
+from smartee.obsidian.render import render_course_overview, render_study_note
+from smartee.teacher import StudyNote
 
 _COURSES_DIR = "01 Courses"
+_ASSIGNMENTS_DIR = "02 Assignments"
 _OVERVIEW_FILENAME = "Course Overview.md"
 _UNSAFE = re.compile(r"[^A-Za-z0-9 _-]+")
+
+
+def _safe_name(text: str, *, fallback: str) -> str:
+    cleaned = " ".join(_UNSAFE.sub(" ", text).split())
+    return cleaned or fallback
 
 
 def course_folder_name(bundle: CourseBundle) -> str:
@@ -36,4 +43,18 @@ def write_course_overview(bundle: CourseBundle, vault_dir: Path) -> Path:
     path = course_overview_path(bundle, vault_dir)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(render_course_overview(bundle), encoding="utf-8")
+    return path
+
+
+def study_note_path(note: StudyNote, vault_dir: Path) -> Path:
+    filename = _safe_name(note.title, fallback=note.assignment_id) + ".md"
+    return Path(vault_dir) / _ASSIGNMENTS_DIR / filename
+
+
+def write_study_note(note: StudyNote, vault_dir: Path) -> Path:
+    """Render and write an AI-generated study note to `02 Assignments/`,
+    creating the folder. Overwrites in place. Returns the written path."""
+    path = study_note_path(note, vault_dir)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(render_study_note(note), encoding="utf-8")
     return path
