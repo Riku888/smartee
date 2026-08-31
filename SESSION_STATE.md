@@ -12,10 +12,14 @@ pipeline → Obsidian vault, AI study notes per assignment with a captured
 description, and a cross-course `00 Dashboard/Today.md` priority view.
 Runs via `scripts/build_vault.py --vault <path> [--study-notes]`.
 
-Next: Phase 2 — the **Collector** (Playwright read-only navigation that
-produces the recon JSON automatically instead of the manual
-`scripts/recon_learning_suite.py` press-Enter loop) and material
-downloads / diff detection.
+Phase 2 (Collector) has started — **assignments-only slice built, not yet
+run live**. `scripts/collect_learning_suite.py`: after the human logs in,
+it discovers courses from the switcher menu and captures each course's
+assignments list, writing the same `recon-<ts>.json`. Needs one real
+capture session to validate (does the switcher click expand the menu? do
+the derived assignment URLs resolve?). Still to come in Phase 2: content
+page nav (blocked on hrefless section links), material downloads, diff
+detection.
 
 ## Deterministic pipeline (verified against real captures, 5 courses)
 
@@ -114,15 +118,30 @@ creates the note at the "default location for new notes" (currently the
 vault root), which will collide with the `02 Assignments/` file Smartee
 generates later. Fix in Obsidian settings, not in code.
 
-## Recon (manual, current input)
+## Recon input
 
-`scripts/recon_learning_suite.py` — headful Chromium + local persistent
-profile, manual BYU/Duo login, press Enter to capture the current page
-(read-only: never clicks/submits/fills). Writes each capture immediately
-to `.local/recon/output/recon-<ts>.json`. Course identity comes from the
-course-switcher label (`aria-label` "Show course selection menu. Current
-course: …"); the URL `cid-` token is unreliable across "same URL,
-different DOM". Old pre-`datetime` captures render with `Due: —`.
+- `scripts/recon_learning_suite.py` — manual: headful Chromium + local
+  persistent profile, manual BYU/Duo login, press Enter to capture the
+  current page (read-only). Still the path for content / materials pages
+  and any non-assignment page. Writes `.local/recon/output/recon-<ts>.json`.
+- `scripts/collect_learning_suite.py` — **new, Collector v1**: same output
+  format, but drives its own navigation. After login it clicks the
+  course-switcher toggle (the only click it makes), runs `discover_courses`,
+  then for each course `page.goto` the derived assignments URL and
+  `capture_page`. Detects the login wall and pauses; hard budgets
+  (`smartee/collector/plan.CollectionBudget` — max courses/pages/seconds,
+  nav delay). Falls back to "open the menu yourself, press Enter" if the
+  toggle click doesn't expand the menu. **Not yet run against the real
+  site.**
+- `smartee/collector/plan.py` (pure, tested): `assignments_url` (derive the
+  list URL from a course-scoped URL the browser resolved to +
+  the verified `student/home/assignments` tail), `classify_snapshot`
+  (`assignments_list` / `exam_list` / `not_logged_in` / `other` — checks
+  the capture, not the URL), `is_auth_wall`, `CollectionBudget`.
+
+Course identity is still the course-switcher label; the URL `cid-` token is
+unreliable across "same URL, different DOM". Old pre-`datetime` captures
+render with `Due: —`.
 
 ## Open / deferred (not blocking)
 
@@ -141,6 +160,12 @@ different DOM". Old pre-`datetime` captures render with `Due: —`.
 - Enumerating every content page of a course (some content pages expose
   the section `<a>` hrefs); Schedule page week/row structure;
   per-material real filenames (resolve at acquisition).
+- **Collector live validation** — run `collect_learning_suite.py` once
+  against the real site: does clicking the switcher toggle expand the
+  menu (OBSERVATIONS: no `aria-controls`/handler was ever captured)? do
+  the derived `student/home/assignments` URLs resolve for every course
+  (one course uses a `/page/` path variant)? does the persistent profile
+  keep the session between runs (OPEN_QUESTIONS #2)?
 
 ## Autonomy ladder (ARCHITECTURE §21, D-018/D-019)
 
@@ -152,6 +177,7 @@ navigation tool, not an unattended loop — it still ends in a human-run
 
 ## Operational state
 
-`main` is at PR #27 (deep study notes + course/note linking). Open PRs:
-#28 `docs/post-27-cleanup` (SESSION_STATE refresh + notice text), and the
-`feat/today-dashboard` PR stacked on it (planner + `Today.md`).
+`main` is at PR #30 (Today dashboard; #29 had merged into a stale base and
+was re-landed as #30). Open PR: `feat/collector-assignments` — Collector
+v1. Branch every PR off `main` — never stack a PR on another feature
+branch (GitHub won't retarget it and it can merge into a dead branch).
