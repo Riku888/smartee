@@ -37,7 +37,8 @@ from smartee.config import load_env
 from smartee.course import CourseBundle, assemble_course_bundle
 from smartee.llm import LlmUnavailable
 from smartee.material import ContentPageObservation, build_manifest
-from smartee.obsidian import write_course_overview, write_study_note
+from smartee.obsidian import write_course_overview, write_study_note, write_today
+from smartee.planner import rank_actionable
 from smartee.teacher import build_study_note
 
 DEFAULT_RECON_DIR = Path(".local/recon/output")
@@ -154,6 +155,7 @@ def main() -> None:
         print("No attributable course data found in recon captures.")
         return
 
+    bundles = []
     for course_id in course_ids:
         bundle = assemble_course_bundle(
             course_id=course_id,
@@ -162,6 +164,7 @@ def main() -> None:
             materials=materials_by_course.get(course_id, []),
             assembled_at=now,
         )
+        bundles.append(bundle)
         written = write_course_overview(bundle, args.vault)
         rel = written.relative_to(args.vault)
         print(
@@ -171,6 +174,10 @@ def main() -> None:
         )
         if args.study_notes:
             _write_study_notes(bundle, args.vault)
+
+    ranked = rank_actionable(bundles, now=now)
+    today = write_today(ranked, args.vault, generated_at=now)
+    print(f"{len(ranked)} actionable assignments -> {today.relative_to(args.vault)}")
 
 
 if __name__ == "__main__":

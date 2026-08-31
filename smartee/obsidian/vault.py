@@ -5,15 +5,22 @@ is a generated file: `write_course_overview` overwrites it in place. No
 other note is touched.
 """
 
+from datetime import datetime
 from pathlib import Path
 
 from smartee.course.bundle import CourseBundle
 from smartee.obsidian.naming import course_stem, safe_stem
-from smartee.obsidian.render import render_course_overview, render_study_note
+from smartee.obsidian.render import (
+    render_course_overview,
+    render_study_note,
+    render_today,
+)
+from smartee.planner import RankedAssignment
 from smartee.teacher import StudyNote
 
 _COURSES_DIR = "01 Courses"
 _ASSIGNMENTS_DIR = "02 Assignments"
+_DASHBOARD_DIR = "00 Dashboard"
 _LEGACY_OVERVIEW_FILENAME = "Course Overview.md"
 
 
@@ -53,4 +60,21 @@ def write_study_note(note: StudyNote, vault_dir: Path) -> Path:
     path = study_note_path(note, vault_dir)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(render_study_note(note), encoding="utf-8")
+    return path
+
+
+def today_path(vault_dir: Path) -> Path:
+    return Path(vault_dir) / _DASHBOARD_DIR / "Today.md"
+
+
+def write_today(
+    ranked: list[RankedAssignment],
+    vault_dir: Path,
+    generated_at: datetime | None = None,
+) -> Path:
+    """Render and write the cross-course `00 Dashboard/Today.md` priority
+    note, creating the folder. Overwrites in place. Returns the written path."""
+    path = today_path(vault_dir)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(render_today(ranked, generated_at), encoding="utf-8")
     return path
