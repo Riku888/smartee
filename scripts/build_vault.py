@@ -81,7 +81,11 @@ def _write_study_notes(bundle: CourseBundle, vault: Path) -> int:
     written = 0
     for assignment in described:
         try:
-            note = build_study_note(assignment, now=datetime.now(UTC))
+            note = build_study_note(
+                assignment,
+                course_label=bundle.course_label,
+                now=datetime.now(UTC),
+            )
         except LlmUnavailable as exc:
             print(f"  study notes skipped ({exc})")
             break

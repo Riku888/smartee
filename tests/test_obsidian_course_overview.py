@@ -73,20 +73,32 @@ def test_render_assignment_row():
         grade_weight=5.0,
     )
     md = render_course_overview(_bundle(assignments=[a]))
-    assert "| 2026-09-16 19:00 | Lab 1: GRC | Completed | 48 / 50 | 5% |" in md
+    assert (
+        "| 2026-09-16 19:00 | [[Lab 1 GRC\\|Lab 1: GRC]] | Completed | 48 / 50 | 5% |"
+        in md
+    )
     assert "graded_assignments: 1" in md
 
 
 def test_render_missing_fields_render_as_dash():
     a = _assignment("a", title="Team assignment")
     md = render_course_overview(_bundle(assignments=[a]))
-    assert "| — | Team assignment | — | — | — |" in md
+    assert "| — | [[Team assignment\\|Team assignment]] | — | — | — |" in md
 
 
-def test_render_pipe_in_title_is_escaped():
+def test_render_assignment_title_links_to_study_note():
+    a = _assignment("a", title="Final Assessment: Scoping and RoE")
+    md = render_course_overview(_bundle(assignments=[a]))
+    # link target is the safe stem; display text keeps the real title
+    assert (
+        "[[Final Assessment Scoping and RoE\\|Final Assessment: Scoping and RoE]]" in md
+    )
+
+
+def test_render_pipe_in_title_is_escaped_in_display():
     a = _assignment("a", title="A | B")
     md = render_course_overview(_bundle(assignments=[a]))
-    assert "A \\| B" in md
+    assert "A \\| B]]" in md
 
 
 def test_render_material_row_with_and_without_link():
