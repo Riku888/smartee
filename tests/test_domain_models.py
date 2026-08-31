@@ -69,6 +69,7 @@ def test_assignment_optional_fields_missing():
     assert assignment.max_points is None
     assert assignment.grade_weight is None
     assert assignment.has_submission_action is False
+    assert assignment.status is None
     assert assignment.external_links == []
 
 

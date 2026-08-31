@@ -6,6 +6,11 @@ from smartee.assignment.extract import (
     ExtractedAssignment,
     extract_assignments,
 )
+from smartee.assignment.normalize import (
+    assignment_identity,
+    normalize_assignment,
+    normalize_assignments,
+)
 
 __all__ = [
     "AssignmentExtractionProvenance",
@@ -13,5 +18,8 @@ __all__ = [
     "AssignmentListObservation",
     "AssignmentRowObservation",
     "ExtractedAssignment",
+    "assignment_identity",
     "extract_assignments",
+    "normalize_assignment",
+    "normalize_assignments",
 ]

@@ -24,6 +24,10 @@ class Assignment(BaseModel):
     max_points: float | None = None
     grade_weight: float | None = None
     has_submission_action: bool = False
+    # The Learning Suite status/action word as shown on the row, verbatim and
+    # sanitized (`Submit`, `Completed`, `Closed`, `Check off`, …). Not an enum:
+    # the full set of values is not verified. `None` when it was not observed.
+    status: str | None = None
     description: str | None = None
     external_links: list[HttpUrl] = []
     source_url: HttpUrl | None = None
