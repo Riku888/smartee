@@ -1,3 +1,8 @@
+from smartee.course.bundle import (
+    CourseBundle,
+    CourseBundleSummary,
+    assemble_course_bundle,
+)
 from smartee.course.discovery import (
     CourseDiscoveryProvenance,
     CourseDiscoveryResult,
@@ -13,6 +18,8 @@ from smartee.course.entry import (
 )
 
 __all__ = [
+    "CourseBundle",
+    "CourseBundleSummary",
     "CourseDiscoveryProvenance",
     "CourseDiscoveryResult",
     "CourseEntryObservation",
@@ -20,6 +27,7 @@ __all__ = [
     "CourseMenuObservation",
     "DiscoveredCourse",
     "ResolvedCourseEntry",
+    "assemble_course_bundle",
     "discover_courses",
     "resolve_course_entry",
 ]
