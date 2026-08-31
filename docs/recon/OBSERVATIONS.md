@@ -182,19 +182,21 @@ identical in both courses.
 - A later capture of that same past-term course's full list returned **all
   26 rows** (9 `Closed` + 17 `Completed`) once the recon row cap was
   raised, confirming the collapsed-row layout holds across the whole list,
-  including attendance rows (`0%` weight) and one `(Ungraded)` row. The
-  expanded row in that capture again had `#descriptionBlock` /
-  `#AssignmentDescription` present but with **no body text reaching the
-  recon descendant walk** — the description body is deeper than the walk's
-  depth/node caps, so description text is still not captured.
+  including attendance rows (`0%` weight) and one `(Ungraded)` row.
+- An expanded row's **description body text** is now captured directly
+  (`#AssignmentDescription` inner text, falling back to `#descriptionBlock`,
+  `sanitize_text_block`), since it sits deeper than the bounded descendant
+  walk. One real example came through intact: multi-line, numbered steps,
+  sub-bullets, and an embedded URL. When the fallback `#descriptionBlock`
+  is used the text also carries panel chrome (`Due:` / `Available:` /
+  `View exam` / `Uncheck`); `#AssignmentDescription` alone should be the
+  clean body.
 
 Still UNKNOWN for the assignment list: what `Show Course Homework ID`
-reveals (likely the stable per-assignment id — the toggle was located but
-not activated in a capture), the description **body text** (needs a
-targeted recon capture of `#AssignmentDescription`), the collapsed
-structure of a `Check off` row and of locked `Opens <date>` rows, the
-`*` / `§` superscript meanings, and whether a third instructor keeps this
-layout.
+reveals (likely the stable per-assignment id — the toggle has been located
+in the DOM but never activated in a capture), the collapsed structure of a
+`Check off` row and of locked `Opens <date>` rows, the `*` / `§`
+superscript meanings, and whether a third instructor keeps this layout.
 
 ## Course list / course switcher (VERIFIED / UNKNOWN)
 

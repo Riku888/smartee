@@ -67,8 +67,10 @@ ASSIGNMENTS_COMPONENT_SELECTOR = "#assignmentsComponent"
 # When an assignment row is expanded, its description body lives here — deeper
 # than the bounded descendant walk reaches, so it is captured directly (read
 # only, `.inner_text()`) and passed through `sanitize_text_block` (untrusted
-# course-authored text, Hard Rule 6). Local `.local/` evidence only.
-DESCRIPTION_BLOCK_SELECTOR = "#AssignmentDescription, #descriptionBlock"
+# course-authored text, Hard Rule 6). Local `.local/` evidence only. Tried in
+# order: `#AssignmentDescription` is the body; `#descriptionBlock` is its
+# wrapper and also carries panel chrome (Due / Available / buttons).
+DESCRIPTION_BLOCK_SELECTORS = ("#AssignmentDescription", "#descriptionBlock")
 
 # Read-only bounded walk of an element's descendant *elements*: tag, a short
 # structural path, direct text-node text, class, and raw attributes. Reads only
@@ -224,11 +226,14 @@ def _description_text(el) -> str | None:
     element contains one. Read-only `.inner_text()`; no handler runs."""
     if el is None:
         return None
-    block = el.query_selector(DESCRIPTION_BLOCK_SELECTOR)
-    if block is None:
-        return None
-    text = sanitize_text_block(block.inner_text() or "")
-    return text or None
+    for selector in DESCRIPTION_BLOCK_SELECTORS:
+        block = el.query_selector(selector)
+        if block is None:
+            continue
+        text = sanitize_text_block(block.inner_text() or "")
+        if text:
+            return text
+    return None
 
 
 def _assignment_row_candidates(page: Page, current_url: str) -> list[dict]:
