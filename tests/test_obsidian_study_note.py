@@ -10,6 +10,7 @@ from smartee.teacher import StudyNote
 _NOTE = StudyNote(
     assignment_id="cid-x:abc123",
     course_id="cid-x",
+    course_label="CYBER 467 - Cybersecurity Pen Test",
     title="Lab 4: Firewall/VPN",
     markdown="## What this is really asking\n\nConfigure a VPN.\n",
     model="claude-opus-5",
@@ -25,6 +26,7 @@ def test_render_has_ai_frontmatter_and_notice():
     assert "ai_generated: true" in md
     assert "assignment_id: cid-x:abc123" in md
     assert "model: claude-opus-5" in md
+    assert 'course: "[[CYBER 467 - Cybersecurity Pen Test]]"' in md
     assert "language: en" in md
     assert "generated: 2026-08-31T12:00:00+00:00" in md
     assert "# Lab 4: Firewall/VPN" in md
@@ -46,6 +48,7 @@ def test_render_generated_none_is_null():
     note = StudyNote(
         assignment_id="a",
         course_id="c",
+        course_label=None,
         title="T",
         markdown="## x",
         model="m",

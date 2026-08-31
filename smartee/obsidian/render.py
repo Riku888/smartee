@@ -14,6 +14,7 @@ from datetime import datetime
 
 from smartee.course.bundle import CourseBundle
 from smartee.domain.models import Assignment, MaterialManifestEntry
+from smartee.obsidian.naming import course_stem, safe_stem
 from smartee.teacher import StudyNote
 
 _GENERATED_NOTICE = (
@@ -95,7 +96,7 @@ def _assignments_section(assignments: list[Assignment]) -> str:
     rows = [
         "| {due} | {title} | {status} | {score} | {weight} |".format(
             due=_due(a.due_at),
-            title=_cell(a.title),
+            title=_assignment_link(a.title),
             status=_cell(a.status or "—"),
             score=_score(a.score, a.max_points),
             weight=_percent(a.grade_weight),
@@ -103,6 +104,14 @@ def _assignments_section(assignments: list[Assignment]) -> str:
         for a in assignments
     ]
     return "\n".join(["## Assignments", "", header, *rows])
+
+
+def _assignment_link(title: str) -> str:
+    """A table-cell link to the assignment's study note (which may not exist
+    yet — an unresolved link still connects them in the graph once it does)."""
+    stem = safe_stem(title, fallback=title)
+    display = _cell(title)
+    return f"[[{stem}\\|{display}]]" if stem else display
 
 
 def _materials_section(materials: list[MaterialManifestEntry]) -> str:
@@ -124,11 +133,13 @@ def _materials_section(materials: list[MaterialManifestEntry]) -> str:
 def render_study_note(note: StudyNote) -> str:
     """Full Markdown for `02 Assignments/<title>.md` — an AI-generated study
     note wrapped with provenance frontmatter and an "AI-generated" notice."""
+    course_note = course_stem(note.course_label, note.course_id)
     frontmatter = "\n".join(
         [
             "---",
             "type: study-note",
             "ai_generated: true",
+            f'course: "[[{course_note}]]"',
             f"assignment_id: {note.assignment_id}",
             f"course_id: {note.course_id}",
             f"model: {note.model}",

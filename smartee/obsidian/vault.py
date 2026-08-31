@@ -5,30 +5,21 @@ is a generated file: `write_course_overview` overwrites it in place. No
 other note is touched.
 """
 
-import re
 from pathlib import Path
 
 from smartee.course.bundle import CourseBundle
+from smartee.obsidian.naming import course_stem, safe_stem
 from smartee.obsidian.render import render_course_overview, render_study_note
 from smartee.teacher import StudyNote
 
 _COURSES_DIR = "01 Courses"
 _ASSIGNMENTS_DIR = "02 Assignments"
 _LEGACY_OVERVIEW_FILENAME = "Course Overview.md"
-_UNSAFE = re.compile(r"[^A-Za-z0-9 _-]+")
-
-
-def _safe_name(text: str, *, fallback: str) -> str:
-    cleaned = " ".join(_UNSAFE.sub(" ", text).split())
-    return cleaned or fallback
 
 
 def course_folder_name(bundle: CourseBundle) -> str:
-    """Filesystem-safe folder name for a course: its label with punctuation
-    stripped, falling back to the course id."""
-    label = _UNSAFE.sub(" ", bundle.course_label or "").strip()
-    label = " ".join(label.split())
-    return label or _UNSAFE.sub("-", bundle.course_id).strip("-") or "course"
+    """Filesystem-safe folder name for a course."""
+    return course_stem(bundle.course_label, bundle.course_id)
 
 
 def course_overview_path(bundle: CourseBundle, vault_dir: Path) -> Path:
@@ -52,7 +43,7 @@ def write_course_overview(bundle: CourseBundle, vault_dir: Path) -> Path:
 
 
 def study_note_path(note: StudyNote, vault_dir: Path) -> Path:
-    filename = _safe_name(note.title, fallback=note.assignment_id) + ".md"
+    filename = safe_stem(note.title, fallback=note.assignment_id) + ".md"
     return Path(vault_dir) / _ASSIGNMENTS_DIR / filename
 
 

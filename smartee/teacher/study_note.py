@@ -94,6 +94,7 @@ class StudyNote:
 
     assignment_id: str
     course_id: str
+    course_label: str | None
     title: str
     markdown: str
     model: str
@@ -104,6 +105,7 @@ class StudyNote:
 def build_study_note(
     assignment: Assignment,
     *,
+    course_label: str | None = None,
     config: LlmConfig | None = None,
     language: str | None = None,
     now: datetime | None = None,
@@ -116,6 +118,7 @@ def build_study_note(
     return StudyNote(
         assignment_id=assignment.id,
         course_id=assignment.course_id,
+        course_label=course_label,
         title=assignment.title,
         markdown=body,
         model=settings.resolved_model(),
