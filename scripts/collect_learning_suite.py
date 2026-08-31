@@ -47,30 +47,84 @@ from smartee.collector import (
 )
 from smartee.course.discovery import CourseMenuObservation, discover_courses
 
-DEFAULT_START_URL = "https://learningsuite.byu.edu/"
+# The Course List page — carries the course-selection menu and, when it is
+# open, the course entry links discovery reads.
+DEFAULT_START_URL = "https://learningsuite.byu.edu/student/top"
 DEFAULT_PROFILE_DIR = Path(".local/recon/browser-profile")
 DEFAULT_OUTPUT_DIR = Path(".local/recon/output")
 
 # The course-selection menu toggle (OBSERVATIONS.md / course/discovery.py).
 _SWITCHER_TOGGLE = 'button[aria-label^="Show course selection menu" i]'
-_NAV_TIMEOUT_MS = 30_000
+_NAV_TIMEOUT_MS = 45_000
+_LS_HOST = "learningsuite.byu.edu"
 
 
-def _wait_for_login(page: Page) -> bool:
-    """Pause for the human to authenticate. Returns False if they give up."""
-    while is_auth_wall(page.url):
-        print(f"\nNot logged in (at {page.url.split('?')[0]}).")
+def _settle(page: Page) -> None:
+    """Let redirect chains and the SPA finish before reading `page.url`."""
+    for state in ("load", "networkidle"):
+        try:
+            page.wait_for_load_state(state, timeout=8_000)
+        except PlaywrightTimeout:
+            pass
+
+
+def _pick_page(context) -> Page:
+    """Prefer a tab already on Learning Suite — a restored profile can reopen
+    several, and the first is not always the live one."""
+    for candidate in context.pages:
+        if _LS_HOST in (candidate.url or ""):
+            return candidate
+    return context.pages[0] if context.pages else context.new_page()
+
+
+# Structural containers Learning Suite always renders once the SPA has
+# hydrated (OBSERVATIONS.md). `page.goto` returns on an empty shell, so we
+# wait for one of these before capturing.
+_CONTENT_READY = "#assignmentsComponent, #fullLSPage, #mainContent, h1, [role=button]"
+
+
+def _await_content(page: Page) -> None:
+    """Wait for the SPA to render real content, then a short grace for Vue to
+    finish populating it."""
+    try:
+        page.wait_for_selector(_CONTENT_READY, timeout=15_000, state="attached")
+    except PlaywrightTimeout:
+        pass
+    page.wait_for_timeout(1_500)
+
+
+def _goto(page: Page, url: str) -> None:
+    try:
+        page.goto(url, wait_until="domcontentloaded", timeout=_NAV_TIMEOUT_MS)
+    except (PlaywrightError, PlaywrightTimeout):
+        pass
+    _settle(page)
+    _await_content(page)
+
+
+def _wait_for_login(page: Page, start_url: str) -> bool:
+    """Pause for the human to authenticate. After each Enter, re-open the
+    start page and let it settle before deciding. `skip` trusts the visible
+    browser and proceeds anyway; `quit` aborts."""
+    while True:
+        _settle(page)
+        if not is_auth_wall(page.url):
+            return True
+        print(f"\nLooks not-logged-in (script sees: {page.url.split('?')[0]}).")
         answer = (
             input(
-                "Log in with BYU / Duo in the browser window, then press Enter "
-                "(or type 'quit'): "
+                "Log in with BYU / Duo in the browser, then press Enter. "
+                "('skip' if the browser already shows Learning Suite, 'quit' to stop): "
             )
             .strip()
             .lower()
         )
         if answer == "quit":
             return False
-    return True
+        if answer == "skip":
+            _goto(page, start_url)
+            return True
+        _goto(page, start_url)
 
 
 def _expand_course_switcher(page: Page) -> None:
@@ -80,43 +134,76 @@ def _expand_course_switcher(page: Page) -> None:
     try:
         toggle = page.query_selector(_SWITCHER_TOGGLE)
         if toggle is None:
+            print("  (course-switcher toggle not found on this page)")
             return
         if (toggle.get_attribute("aria-expanded") or "").strip().lower() != "true":
             toggle.click()
-            page.wait_for_timeout(750)
+            page.wait_for_timeout(1_000)
     except PlaywrightError as exc:
         print(f"  (could not expand the course switcher: {str(exc).splitlines()[0]})")
 
 
-def _discover(page: Page, *, allow_manual: bool) -> list:
-    """Discover courses from the (expanded) switcher menu on the current page."""
-    _expand_course_switcher(page)
-    snapshot = capture_page(page)
-    result = discover_courses(
-        CourseMenuObservation(
-            elements=snapshot["interactive_elements"],
-            menu_page_url=snapshot["url"],
-            observed_at=datetime.now(UTC),
-        )
+def _cid_link_count(snapshot: dict) -> int:
+    return sum(
+        1
+        for e in snapshot["interactive_elements"]
+        if e["tag"] == "a"
+        and e.get("link")
+        and "/student/cid-" in (e["link"].get("href") or "")
     )
-    if result.courses or not allow_manual:
-        return list(result.courses)
 
-    print(
-        "\nThe course-selection menu did not expand automatically.\n"
-        "Open it manually in the browser (so the course list is visible), "
-        "then press Enter."
-    )
-    input("> ")
+
+def _discover_once(page: Page, debug_snapshots: list[dict]) -> list:
+    """One discovery attempt. The raw capture is kept in `debug_snapshots` so
+    a thin or empty result can be inspected after the run."""
     snapshot = capture_page(page)
+    snapshot["collector_snapshot_kind"] = "course_menu"
+    debug_snapshots.append(snapshot)
     result = discover_courses(
         CourseMenuObservation(
             elements=snapshot["interactive_elements"],
             menu_page_url=snapshot["url"],
             observed_at=datetime.now(UTC),
         )
+    )
+    print(
+        f"  (menu page: {len(snapshot['interactive_elements'])} interactive, "
+        f"{_cid_link_count(snapshot)} course links, "
+        f"{len(result.courses)} discovered)"
     )
     return list(result.courses)
+
+
+def _discover(
+    page: Page, start_url: str, debug_snapshots: list[dict], *, allow_manual: bool
+) -> list:
+    """Discover courses from the course-selection menu. Tries an automatic
+    toggle click first; falls back to asking the human to open the menu."""
+    _expand_course_switcher(page)
+    courses = _discover_once(page, debug_snapshots)
+    if len(courses) > 1:
+        return courses
+
+    # Thin or empty — maybe we drifted off the Course List page, or the menu
+    # needs a moment. Go back and try once more.
+    _goto(page, start_url)
+    _expand_course_switcher(page)
+    retried = _discover_once(page, debug_snapshots)
+    courses = retried if len(retried) >= len(courses) else courses
+    if len(courses) > 1 or not allow_manual:
+        return courses
+
+    labels = sorted({b["label"] for b in capture_page(page)["buttons"]})
+    print(
+        f"\nOnly {len(courses)} course(s) found automatically.\n"
+        f"Buttons seen on the page: {', '.join(labels) or '(none)'}\n"
+        "Open the course menu manually in the browser so the full course list "
+        "is visible, then press Enter (or 'quit' to go with what we have)."
+    )
+    if input("> ").strip().lower() == "quit":
+        return courses
+    manual = _discover_once(page, debug_snapshots)
+    return manual if len(manual) >= len(courses) else courses
 
 
 def _target_assignments_url(page: Page, entry_url: str) -> str | None:
@@ -126,11 +213,7 @@ def _target_assignments_url(page: Page, entry_url: str) -> str | None:
     direct = assignments_url(entry_url)
     if direct is not None:
         return direct
-    try:
-        page.goto(entry_url, wait_until="domcontentloaded", timeout=_NAV_TIMEOUT_MS)
-    except (PlaywrightError, PlaywrightTimeout) as exc:
-        print(f"  (could not open course entry: {str(exc).splitlines()[0]})")
-        return None
+    _goto(page, entry_url)
     return assignments_url(page.url)
 
 
@@ -139,12 +222,14 @@ def _capture_assignments(page: Page, url: str) -> dict | None:
     capture is not an assignments list (same-URL-different-DOM)."""
     for attempt in (1, 2):
         try:
-            page.goto(url, wait_until="networkidle", timeout=_NAV_TIMEOUT_MS)
+            page.goto(url, wait_until="domcontentloaded", timeout=_NAV_TIMEOUT_MS)
         except PlaywrightTimeout:
-            pass  # networkidle can never settle on this SPA; capture anyway
+            pass
         except PlaywrightError as exc:
             print(f"  (navigation failed: {str(exc).splitlines()[0]})")
             return None
+        _settle(page)
+        _await_content(page)
         sleep_between_navigations()
         try:
             snapshot = capture_page(page)
@@ -199,24 +284,27 @@ def main() -> None:
         context = p.chromium.launch_persistent_context(
             str(args.profile_dir), headless=False
         )
-        page = context.pages[0] if context.pages else context.new_page()
+        page = _pick_page(context)
+        try:
+            page.bring_to_front()
+        except PlaywrightError:
+            pass
 
         print("READ-ONLY Collector. Clicks only the course-switcher toggle.")
-        try:
-            page.goto(args.start_url, wait_until="domcontentloaded")
-        except PlaywrightError as exc:
-            print(f"Could not open {args.start_url}: {exc}")
-            context.close()
-            return
+        _goto(page, args.start_url)
 
-        if not _wait_for_login(page):
+        if not _wait_for_login(page, args.start_url):
             print("Aborted before login.")
             context.close()
             return
 
-        courses = _discover(page, allow_manual=True)
+        courses = _discover(page, args.start_url, snapshots, allow_manual=True)
+        persist()
         if not courses:
-            print("No courses discovered from the switcher menu. Nothing to do.")
+            print(
+                "No courses discovered from the switcher menu. "
+                f"Menu snapshot(s) saved to {out_path} for analysis."
+            )
             context.close()
             return
         print(f"Discovered {len(courses)} course(s).")
