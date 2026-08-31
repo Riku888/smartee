@@ -21,11 +21,18 @@ _GENERATED_NOTICE = (
     "regenerated on each run, safe to leave untouched."
 )
 
-_STUDY_NOTE_NOTICE = (
-    "> AI-generated study aid — not course material. The assignment's facts "
-    "(due date, points, weight) live in the Course Overview; this note only "
-    "adds explanation and an approach, and may be wrong."
-)
+_STUDY_NOTE_NOTICE = {
+    "en": (
+        "> AI-generated study aid — not course material. The assignment's "
+        "facts (due date, points, weight) live in the Course Overview; this "
+        "note only adds explanation and an approach, and may be wrong."
+    ),
+    "ja": (
+        "> AI が生成した学習補助であり、コース教材ではありません。締切・点数・"
+        "重みは Course Overview が正、このノートは説明と進め方を足すだけで、"
+        "間違っている可能性があります。"
+    ),
+}
 
 
 def render_course_overview(bundle: CourseBundle) -> str:
@@ -125,17 +132,19 @@ def render_study_note(note: StudyNote) -> str:
             f"assignment_id: {note.assignment_id}",
             f"course_id: {note.course_id}",
             f"model: {note.model}",
+            f"language: {note.language}",
             f"generated: {_iso(note.generated_at)}",
             "---",
         ]
     )
+    notice = _STUDY_NOTE_NOTICE.get(note.language, _STUDY_NOTE_NOTICE["en"])
     return "\n".join(
         [
             frontmatter,
             "",
             f"# {note.title}",
             "",
-            _STUDY_NOTE_NOTICE,
+            notice,
             "",
             note.markdown.strip(),
             "",
