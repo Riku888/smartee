@@ -62,24 +62,28 @@ def assemble_course_bundle(
     """Deduplicate and order one course's assignments and materials.
 
     Items whose `course_id` does not match are dropped (the caller built
-    them for a different course). Duplicate ids keep the first occurrence.
+    them for a different course). Duplicate materials keep the first
+    occurrence; duplicate assignments are **merged** field-by-field
+    (first-non-empty wins) so a value seen in only one capture — a due
+    date from a fresh capture, a description from an expanded row —
+    survives even when another capture of the same assignment lacked it.
     """
-    deduped_assignments = _dedupe(a for a in assignments if a.course_id == course_id)
+    merged_assignments = _merge_assignments(
+        a for a in assignments if a.course_id == course_id
+    )
     deduped_materials = _dedupe(m for m in materials if m.course_id == course_id)
 
-    deduped_assignments.sort(key=lambda a: (a.due_at or _FAR_FUTURE, a.title))
+    merged_assignments.sort(key=lambda a: (a.due_at or _FAR_FUTURE, a.title))
     deduped_materials.sort(key=lambda m: (m.name.lower(), m.id))
 
     summary = CourseBundleSummary(
-        assignment_count=len(deduped_assignments),
+        assignment_count=len(merged_assignments),
         material_count=len(deduped_materials),
         graded_assignment_count=sum(
-            1 for a in deduped_assignments if a.score is not None
+            1 for a in merged_assignments if a.score is not None
         ),
         submission_pending_count=sum(
-            1
-            for a in deduped_assignments
-            if a.has_submission_action and a.score is None
+            1 for a in merged_assignments if a.has_submission_action and a.score is None
         ),
         materials_by_type=dict(
             sorted(Counter(m.material_type for m in deduped_materials).items())
@@ -89,7 +93,7 @@ def assemble_course_bundle(
     return CourseBundle(
         course_id=course_id,
         course_label=course_label,
-        assignments=deduped_assignments,
+        assignments=merged_assignments,
         materials=deduped_materials,
         summary=summary,
         assembled_at=assembled_at,
@@ -105,3 +109,31 @@ def _dedupe(items):
         seen.add(item.id)
         out.append(item)
     return out
+
+
+_EMPTY = (None, "", [])
+
+
+def _merge_assignments(items: Iterable[Assignment]) -> list[Assignment]:
+    """Group `Assignment`s by id (input order preserved); within a group take
+    each field's first non-empty value across occurrences."""
+    order: list[str] = []
+    groups: dict[str, list[Assignment]] = {}
+    for item in items:
+        if item.id not in groups:
+            order.append(item.id)
+        groups.setdefault(item.id, []).append(item)
+
+    merged: list[Assignment] = []
+    for identity in order:
+        group = groups[identity]
+        if len(group) == 1:
+            merged.append(group[0])
+            continue
+        data = group[0].model_dump()
+        for other in group[1:]:
+            for field, value in other.model_dump().items():
+                if data.get(field) in _EMPTY and value not in _EMPTY:
+                    data[field] = value
+        merged.append(Assignment(**data))
+    return merged
