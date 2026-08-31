@@ -1,5 +1,6 @@
 from typing import cast
 
+from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import Page
 
 from scripts.recon_learning_suite import capture_page
@@ -15,22 +16,44 @@ from smartee.resources import (
 class _FakePage:
     """Minimal Playwright-Page double: only the surface capture_page reads."""
 
-    def __init__(self, url: str, *, present_selectors: set[str] | None = None):
+    def __init__(
+        self,
+        url: str,
+        *,
+        present_selectors: set[str] | None = None,
+        raise_on: set[str] | None = None,
+    ):
         self.url = url
         self._present = present_selectors or set()
+        self._raise_on = raise_on or set()
 
-    def query_selector_all(self, _selector: str) -> list:
+    def query_selector_all(self, selector: str) -> list:
+        if selector in self._raise_on:
+            raise PlaywrightError(
+                "Unable to adopt element handle from a different document"
+            )
         return []
 
     def query_selector(self, selector: str):
+        if selector in self._raise_on:
+            raise PlaywrightError(
+                "Unable to adopt element handle from a different document"
+            )
         return object() if selector in self._present else None
 
     def title(self) -> str:
         return "Fake Title"
 
 
-def _fake_page(url: str, *, present_selectors: set[str] | None = None) -> Page:
-    return cast(Page, _FakePage(url, present_selectors=present_selectors))
+def _fake_page(
+    url: str,
+    *,
+    present_selectors: set[str] | None = None,
+    raise_on: set[str] | None = None,
+) -> Page:
+    return cast(
+        Page, _FakePage(url, present_selectors=present_selectors, raise_on=raise_on)
+    )
 
 
 def test_capture_page_url_field_is_sanitized_for_sso_redirect():
@@ -65,6 +88,20 @@ def test_capture_page_flags_assignments_component_when_present():
         present_selectors={"#assignmentsComponent"},
     )
     assert capture_page(page)["assignments_component_present"] is True
+
+
+def test_capture_page_survives_a_dom_error_in_a_sub_capture():
+    # A stale / cross-document handle inside an optional sub-capture (here the
+    # assignment-detail probe, which queries "h1") must not lose the rest of
+    # the snapshot.
+    page = _fake_page(
+        "https://learningsuite.byu.edu/x/student/home/assignments",
+        raise_on={"h1"},
+    )
+    snapshot = capture_page(page)
+    assert snapshot["url"] == "https://learningsuite.byu.edu/x/student/home/assignments"
+    assert snapshot["assignment_detail_candidate"] is None
+    assert snapshot["assignment_row_candidates"] == []
 
 
 def test_sanitize_url_strips_fragment():

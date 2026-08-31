@@ -9,6 +9,11 @@ read-only capture of interactive elements' structural attributes).
 
 This tool never clicks, submits, checks off, or fills anything. It only
 reads DOM text/attributes. See SECURITY.md and CLAUDE.md Hard Rules.
+
+Each capture is written to the output file immediately, and an optional
+sub-capture that hits a transient DOM error (a stale/cross-document element
+handle during a Vue re-render) is skipped rather than aborting the session,
+so a crash never loses earlier captures.
 """
 
 import argparse
@@ -19,6 +24,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import Page, sync_playwright
 
 from smartee.resources import (
@@ -149,9 +155,24 @@ def capture_page(page: Page) -> dict:
             ASSIGNMENTS_COMPONENT_SELECTOR
         )
         is not None,
-        "assignment_row_candidates": _assignment_row_candidates(page, current_url),
-        "assignment_detail_candidate": _assignment_detail_candidate(page, current_url),
+        "assignment_row_candidates": _safe(
+            lambda: _assignment_row_candidates(page, current_url), default=[]
+        ),
+        "assignment_detail_candidate": _safe(
+            lambda: _assignment_detail_candidate(page, current_url), default=None
+        ),
     }
+
+
+def _safe(capture, *, default):
+    """Run one optional sub-capture; on a Playwright DOM error (stale handle,
+    cross-document adopt, detached node during a Vue re-render) log it and fall
+    back so the rest of the snapshot is still recorded."""
+    try:
+        return capture()
+    except PlaywrightError as exc:
+        print(f"  (skipped a sub-capture: {str(exc).splitlines()[0]})")
+        return default
 
 
 def _norm_label(text: str) -> str:
@@ -249,18 +270,26 @@ def _assignment_row_candidates(page: Page, current_url: str) -> list[dict]:
         )
         if label not in ASSIGNMENT_ACTION_LABELS:
             continue
-        chain = _ancestor_chain(control, ROW_ANCESTOR_LEVELS)
-        outermost = chain[-1] if chain else None
-        candidates.append(
-            {
-                "control": _capture_interactive_element(control, current_url),
-                "ancestor_nodes": [_capture_node(a) for a in chain],
-                "container": (
-                    _capture_container(outermost, current_url) if outermost else None
-                ),
-                "description_text": _description_text(outermost),
-            }
-        )
+        try:
+            chain = _ancestor_chain(control, ROW_ANCESTOR_LEVELS)
+            outermost = chain[-1] if chain else None
+            candidates.append(
+                {
+                    "control": _capture_interactive_element(control, current_url),
+                    "ancestor_nodes": [_capture_node(a) for a in chain],
+                    "container": (
+                        _capture_container(outermost, current_url)
+                        if outermost
+                        else None
+                    ),
+                    "description_text": _description_text(outermost),
+                }
+            )
+        except PlaywrightError as exc:
+            print(
+                f"  (skipped one assignment-row candidate: {str(exc).splitlines()[0]})"
+            )
+            continue
         if len(candidates) >= MAX_ASSIGNMENT_ROWS:
             break
     return candidates
@@ -327,6 +356,13 @@ def main() -> None:
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
     snapshots: list[dict] = []
+    out_path = (
+        args.output_dir / f"recon-{datetime.now(UTC).strftime('%Y%m%dT%H%M%SZ')}.json"
+    )
+
+    def persist() -> None:
+        if snapshots:
+            out_path.write_text(json.dumps(snapshots, indent=2))
 
     with sync_playwright() as p:
         context = p.chromium.launch_persistent_context(
@@ -340,37 +376,43 @@ def main() -> None:
         print(
             "Log in manually (BYU / Duo) and navigate to the page you want to capture."
         )
-        print("Commands: [Enter] capture current page, 'quit' to finish and save.\n")
+        print("Commands: [Enter] capture current page, 'quit' to finish and save.")
+        print(f"Each capture is written immediately to {out_path}\n")
 
-        while True:
-            command = input("> ").strip().lower()
-            if command == "quit":
-                break
-            snapshot = capture_page(page)
-            snapshots.append(snapshot)
-            component = (
-                "assignments component present"
-                if snapshot["assignments_component_present"]
-                else "no assignments component"
-            )
-            print(
-                f"Captured: {snapshot['url']} "
-                f"({len(snapshot['links'])} links, {len(snapshot['buttons'])} buttons, "
-                f"{len(snapshot['interactive_elements'])} interactive elements, "
-                f"{len(snapshot['assignment_row_candidates'])} assignment-row "
-                f"candidates, {component})"
-            )
-
-        context.close()
+        try:
+            while True:
+                command = input("> ").strip().lower()
+                if command == "quit":
+                    break
+                try:
+                    snapshot = capture_page(page)
+                except (PlaywrightError, RuntimeError) as exc:
+                    print(f"Capture failed, not added: {str(exc).splitlines()[0]}")
+                    continue
+                snapshots.append(snapshot)
+                persist()
+                component = (
+                    "assignments component present"
+                    if snapshot["assignments_component_present"]
+                    else "no assignments component"
+                )
+                print(
+                    f"Captured ({len(snapshots)}): {snapshot['url']} "
+                    f"({len(snapshot['links'])} links, "
+                    f"{len(snapshot['buttons'])} buttons, "
+                    f"{len(snapshot['interactive_elements'])} interactive elements, "
+                    f"{len(snapshot['assignment_row_candidates'])} assignment-row "
+                    f"candidates, {component})"
+                )
+        except KeyboardInterrupt:
+            print("\nInterrupted.")
+        finally:
+            persist()
+            context.close()
 
     if not snapshots:
         print("No snapshots captured; nothing saved.")
         return
-
-    out_path = (
-        args.output_dir / f"recon-{datetime.now(UTC).strftime('%Y%m%dT%H%M%SZ')}.json"
-    )
-    out_path.write_text(json.dumps(snapshots, indent=2))
     print(f"Saved {len(snapshots)} snapshot(s) to {out_path}")
 
 
