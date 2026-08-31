@@ -142,3 +142,10 @@ def test_meaningful_link_text_is_kept_as_name():
         _observe(_link("Kerberos primer (PDF)", "https://example.com/kerb.pdf"))
     )
     assert m.name == "Kerberos primer (PDF)"
+
+
+def test_bare_url_link_text_falls_back_to_placeholder():
+    (m,) = build_manifest(
+        _observe(_link("https://byu.box.com/s/abc", "https://byu.box.com/s/abc"))
+    )
+    assert m.name == "Box file"

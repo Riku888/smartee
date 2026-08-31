@@ -134,7 +134,11 @@ def _entry_from_link(
 
 def _material_name(link: LinkRecord, source_type: SourceType) -> str:
     label = sanitize_label(link.get("text") or "")
-    if label and label.lower() not in _GENERIC_LABELS:
+    if (
+        label
+        and label.lower() not in _GENERIC_LABELS
+        and not label.lower().startswith(("http://", "https://"))
+    ):
         return label
     return _PLACEHOLDER_NAME.get(source_type, "External resource")
 

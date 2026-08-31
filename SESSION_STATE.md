@@ -7,8 +7,23 @@ Delete or rewrite entries here as work moves on.
 
 ## Current phase
 
-Material Manifest — v1 (single content page → manifest entries).
-Assignment Extractor v1 done (extraction + normalization).
+Roadmap #3 — course-bundle assembly (the pure part of "course traversal").
+Assignment Extractor v1 + Material Manifest v1 done.
+
+## Course bundle
+
+`smartee/course/bundle.py` → `assemble_course_bundle(course_id=…,
+assignments=…, materials=…)` → `CourseBundle`: dedup by id, drop
+cross-course items, sort (assignments by due then title, materials by
+name), plus a `CourseBundleSummary` (counts, graded, submission-pending,
+materials-by-type). Pure — a Collector supplies the captures; this only
+reconciles the already-normalized pieces. Verified end-to-end:
+recon → extract → normalize → build_manifest → assemble (8 deduped
+materials across 4 content pages; 26 assignments sorted by due).
+
+Next: the Collector (Playwright navigation to feed the pipeline) — needs
+the D-019 scaffolding (verifier / budget / stop / escalation), OR jump to
+roadmap #5 Obsidian output which can consume a `CourseBundle` today.
 
 ## Material Manifest v1
 
