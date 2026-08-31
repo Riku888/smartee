@@ -7,24 +7,25 @@ Delete or rewrite entries here as work moves on.
 
 ## Current phase
 
-Material Manifest — evidence phase. Assignment Extractor v1 done
-(extraction + normalization).
+Material Manifest — v1 (single content page → manifest entries).
+Assignment Extractor v1 done (extraction + normalization).
 
-## Material Manifest — evidence so far
+## Material Manifest v1
 
-12-snapshot recon of 3 courses analysed (`docs/recon/OBSERVATIONS.md`
-§ "Course navigation + content pages"). Content pages are
-`student/pages/id-*`; downloadable materials are inline `<a>Download</a>`
-with a `fileId` href but **no filename**; the content-section nav `<a>`
-elements have **no href**. Two recon-tooling gaps block a first build:
+`smartee/material/manifest.py` → `build_manifest(ContentPageObservation)`:
+one captured content page's links → `list[MaterialManifestEntry]`. A link
+is a material iff it is a Learning Suite file download
+(`.../fileDownload.php?fileId=…`) or a cross-origin http(s) link to a
+non-chrome host; in-app nav and site chrome dropped; dedup by `fileId`
+(else URL hash). `name` is a typed placeholder when the link text is
+generic ("Download") — real names resolve later at acquisition from the
+HTTP response. Verified against the real 12-snapshot capture (e.g. a
+"Lectures" page → 5 file materials; a lab page → 1 file + 1 Box link).
 
-1. Capture link `title` attribute + nearest heading/body-text context so a
-   `Download` link's material can be identified.
-2. Capture the content-section `<a>` elements' real attributes (or the
-   content index page `student/pages`) to get the section→page mapping.
-
-Next: enhance the recon tool for those two, then one more capture
-(including the `Content` index), then design the manifest.
+Deferred (not blocking, no capture needed now): enumerating every content
+page of a course (roadmap #3 — some content pages *do* expose the
+content-section `<a>` hrefs); the Schedule page's week/row structure;
+per-material real filenames.
 
 ## What works (verified against real captures, 5 courses)
 
