@@ -7,7 +7,7 @@ Delete or rewrite entries here as work moves on.
 
 ## Current phase
 
-Assignment Extractor — v1 functionally complete.
+Assignment Extractor — v1 complete (extraction + normalization).
 
 ## What works (verified against real captures, 5 courses)
 
@@ -27,6 +27,13 @@ snapshot's `assignment_row_candidates`, producing per row:
 Recon tooling: `datetime` attribute kept; row cap 150; component flag;
 description-block text capture.
 
+`smartee/assignment/normalize.py` → `normalize_assignments(rows, course_id=…)`
+turns those into `smartee.domain.models.Assignment`: parses `due_at` to an
+aware datetime, validates URLs, mints a stable synthetic id
+(`"<course_id>:<hash of normalized title>"` — a moved deadline stays the
+same assignment). Added `Assignment.status` (raw LS label). Verified
+end-to-end: 26 real rows → 26 `Assignment` objects, unique stable ids.
+
 ## Open (low priority — not blocking)
 
 - **Stable per-assignment id** — behind the `Show Course Homework ID`
@@ -41,11 +48,11 @@ description-block text capture.
 
 ## Next candidates
 
-1. Normalization: pair extracted rows with course context → deterministic
-   `smartee.domain.models.Assignment` (synthetic id from course_id + title
-   + due).
-2. Roadmap #2 — Material Manifest.
+1. Roadmap #2 — Material Manifest (needs recon of course content/materials
+   pages first).
+2. Course-traversal pass that calls discovery → per-course assignment
+   extract+normalize.
 
 ## Operational state
 
-On `main` (PRs #10–#13 merged). One open PR: `fix/description-selector-priority`.
+On `main` (PRs #10–#14 merged). One open PR: `feat/assignment-normalize`.
