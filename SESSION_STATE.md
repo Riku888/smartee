@@ -7,8 +7,17 @@ Delete or rewrite entries here as work moves on.
 
 ## Current phase
 
-Roadmap #3 — course-bundle assembly (the pure part of "course traversal").
-Assignment Extractor v1 + Material Manifest v1 done.
+Roadmap #5 — Obsidian Course Overview note (v1 human-facing output).
+Assignment Extractor + Material Manifest + course-bundle assembly done.
+
+## Obsidian output
+
+`smartee/obsidian/` — `render_course_overview(CourseBundle) -> str` (pure
+Markdown: frontmatter + Summary + Assignments table + Materials table,
+facts only, no pedagogy) and `write_course_overview(bundle, vault_dir)`
+which writes `01 Courses/<course>/Course Overview.md` (filesystem adapter,
+overwrites in place). Verified: a real 26-assignment course renders a
+clean note. Teacher-generated concept/week notes (§14) are roadmap #6.
 
 ## Course bundle
 
