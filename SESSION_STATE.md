@@ -7,8 +7,17 @@ Delete or rewrite entries here as work moves on.
 
 ## Current phase
 
-Roadmap #5 — Obsidian Course Overview note (v1 human-facing output).
-Assignment Extractor + Material Manifest + course-bundle assembly done.
+End-to-end pipeline runnable: `scripts/build_vault.py --vault <path>` reads
+`.local/recon/output/*.json` → per-course `Course Overview.md`. Roadmap
+#1–#3(pure) + #5 done.
+
+The user's real vault: `/mnt/c/Users/rikut/OneDrive - Brigham Young
+University/Documents/Smartee` (name "Smartee", OneDrive-synced). Notes were
+written there for CYBER 467, IT&C 293, IT&C 366, ME EN 475.
+
+Course identity in the CLI is the course-switcher label (the URL `cid-` is
+unreliable — stale across "same URL, different DOM"); `course_id` is a
+slug of that label. Old pre-`datetime` captures render with `Due: —`.
 
 ## Obsidian output
 
