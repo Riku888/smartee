@@ -1,15 +1,20 @@
 #!/usr/bin/env python3
-"""Build Obsidian Course Overview notes from local recon captures.
+"""Build Obsidian notes from local recon captures.
 
 Reads every snapshot in `.local/recon/output/*.json`, runs the deterministic
 pipeline (extract assignments -> normalize; content links -> material
 manifest; reconcile into a course bundle) and writes one
 `01 Courses/<course>/Course Overview.md` per course into the given vault.
 
-No network, no LLM. Overwrites the generated overview notes in place and
-touches nothing else in the vault.
+With `--study-notes`, also asks the Teacher for one AI study note per
+assignment that has a captured description, into `02 Assignments/`. That
+step needs an Anthropic credential (`.env` at the repo root is loaded);
+model via `SMARTEE_TEACHER_MODEL` (default claude-opus-5).
+
+Overwrites the generated notes in place and touches nothing else.
 
     uv run python scripts/build_vault.py --vault "/path/to/Obsidian/Vault"
+    uv run python scripts/build_vault.py --vault "..." --study-notes
 """
 
 import argparse
@@ -28,9 +33,12 @@ from smartee.assignment import (
     normalize_assignments,
 )
 from smartee.assignment.extract import AssignmentRowObservation
-from smartee.course import assemble_course_bundle
+from smartee.config import load_env
+from smartee.course import CourseBundle, assemble_course_bundle
+from smartee.llm import LlmUnavailable
 from smartee.material import ContentPageObservation, build_manifest
-from smartee.obsidian import write_course_overview
+from smartee.obsidian import write_course_overview, write_study_note
+from smartee.teacher import build_study_note
 
 DEFAULT_RECON_DIR = Path(".local/recon/output")
 
@@ -63,11 +71,37 @@ def _rows(snapshot: dict) -> list[AssignmentRowObservation]:
     ]
 
 
+def _write_study_notes(bundle: CourseBundle, vault: Path) -> int:
+    """One study note per assignment that has a captured description.
+    Returns the count written; stops early on `LlmUnavailable`."""
+    described = [a for a in bundle.assignments if a.description]
+    if not described:
+        return 0
+    written = 0
+    for assignment in described:
+        try:
+            note = build_study_note(assignment, now=datetime.now(UTC))
+        except LlmUnavailable as exc:
+            print(f"  study notes skipped ({exc})")
+            break
+        path = write_study_note(note, vault)
+        print(f"  study note: {assignment.title} -> {path.relative_to(vault)}")
+        written += 1
+    return written
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--vault", type=Path, required=True)
     parser.add_argument("--recon-dir", type=Path, default=DEFAULT_RECON_DIR)
+    parser.add_argument(
+        "--study-notes",
+        action="store_true",
+        help="also generate AI study notes (needs an Anthropic credential)",
+    )
     args = parser.parse_args()
+
+    load_env(Path(__file__).resolve().parent.parent / ".env")
 
     if not args.vault.is_dir():
         parser.error(f"vault directory not found: {args.vault}")
@@ -130,6 +164,8 @@ def main() -> None:
             f"{bundle.summary.assignment_count} assignments, "
             f"{bundle.summary.material_count} materials -> {rel}"
         )
+        if args.study_notes:
+            _write_study_notes(bundle, args.vault)
 
 
 if __name__ == "__main__":

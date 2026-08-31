@@ -26,10 +26,18 @@ runs the deterministic pipeline into the vault.
 - `smartee/obsidian/{render,vault}` — `render_study_note` /
   `write_study_note` → `02 Assignments/<title>.md`, `ai_generated: true`
   frontmatter + notice.
-- `anthropic>=1.2` added to deps. **No credentials configured in this
-  env** (`ANTHROPIC_API_KEY` unset, no `ant`); tests mock the client. The
-  user sets a key to actually run it; `SMARTEE_TEACHER_MODEL=claude-sonnet-5`
-  for ~5× cheaper.
+- `anthropic>=1.2` added to deps. `smartee/config.load_env` — minimal
+  `.env` loader (no dep, does not override real env vars). `.env` at the
+  repo root holds `ANTHROPIC_API_KEY` (present, gitignored).
+- `scripts/build_vault.py --study-notes` loads `.env` and generates one
+  study note per assignment **that has a captured description** into
+  `02 Assignments/`. Ran for real: `claude-opus-5` produced a strong
+  study note for the one described assignment (STEM fair). It is in the
+  user's vault.
+- `assemble_course_bundle` now **merges** duplicate assignments
+  field-by-field (first-non-empty wins) so a description / due date seen
+  in only one capture survives.
+- `SMARTEE_TEACHER_MODEL=claude-sonnet-5` for ~5× cheaper.
 
 The user's real vault: `/mnt/c/Users/rikut/OneDrive - Brigham Young
 University/Documents/Smartee` (name "Smartee", OneDrive-synced). Notes were

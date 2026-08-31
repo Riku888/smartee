@@ -42,14 +42,37 @@ def test_empty_bundle():
     assert b.summary.materials_by_type == {}
 
 
-def test_deduplicates_by_id_first_wins():
-    a1 = _assignment("a", title="first")
-    a2 = _assignment("a", title="second")
+def test_materials_deduplicate_by_id_first_wins():
     m1 = _material("m", name="one")
     m2 = _material("m", name="two")
-    b = assemble_course_bundle(course_id=_C, assignments=[a1, a2], materials=[m1, m2])
-    assert [a.title for a in b.assignments] == ["first"]
+    b = assemble_course_bundle(course_id=_C, materials=[m1, m2])
     assert [m.name for m in b.materials] == ["one"]
+
+
+def test_duplicate_assignments_merge_first_non_empty_field_wins():
+    bare = _assignment("a", title="Lab")
+    rich = Assignment(
+        id="a",
+        course_id=_C,
+        title="Lab",
+        due_at=datetime(2026, 3, 1, tzinfo=UTC),
+        score=9.0,
+        description="Do the thing.",
+    )
+    b = assemble_course_bundle(course_id=_C, assignments=[bare, rich])
+    (merged,) = b.assignments
+    assert merged.due_at == datetime(2026, 3, 1, tzinfo=UTC)
+    assert merged.score == 9.0
+    assert merged.description == "Do the thing."
+
+
+def test_merge_keeps_the_earlier_non_empty_value():
+    first = _assignment("a", title="Lab", score=5.0)
+    second = _assignment("a", title="Lab", score=7.0)
+    (merged,) = assemble_course_bundle(
+        course_id=_C, assignments=[first, second]
+    ).assignments
+    assert merged.score == 5.0
 
 
 def test_drops_items_from_a_different_course():
