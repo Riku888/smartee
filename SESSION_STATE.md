@@ -7,7 +7,24 @@ Delete or rewrite entries here as work moves on.
 
 ## Current phase
 
-Assignment Extractor — v1 complete (extraction + normalization).
+Material Manifest — evidence phase. Assignment Extractor v1 done
+(extraction + normalization).
+
+## Material Manifest — evidence so far
+
+12-snapshot recon of 3 courses analysed (`docs/recon/OBSERVATIONS.md`
+§ "Course navigation + content pages"). Content pages are
+`student/pages/id-*`; downloadable materials are inline `<a>Download</a>`
+with a `fileId` href but **no filename**; the content-section nav `<a>`
+elements have **no href**. Two recon-tooling gaps block a first build:
+
+1. Capture link `title` attribute + nearest heading/body-text context so a
+   `Download` link's material can be identified.
+2. Capture the content-section `<a>` elements' real attributes (or the
+   content index page `student/pages`) to get the section→page mapping.
+
+Next: enhance the recon tool for those two, then one more capture
+(including the `Content` index), then design the manifest.
 
 ## What works (verified against real captures, 5 courses)
 

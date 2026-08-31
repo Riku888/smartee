@@ -250,6 +250,48 @@ of `smartee/course/discovery.py`.
   (never invent DOM/API behavior) applies fully to them; they stay
   UNKNOWN.
 
+## Course navigation + content pages (VERIFIED — Material Manifest evidence)
+
+Source: 12 read-only snapshots across three courses (one dashboard, one
+schedule/table page, one calendar, several `student/pages/id-*` content
+pages, in two different courses). Structure only; page names below are
+generic paraphrases, not captured headings.
+
+- Every in-course page carries the same top nav, each a plain `<a>`:
+  `Home | Content | Dialog | Exams | Grades | Schedule | Syllabus`
+  (rendered twice per page). Their hrefs are **relative in-app paths** that
+  the recon link builder resolves to absolute (`.../student/home`,
+  `.../student/pages`, `.../student/discuss`, `.../student/exam`,
+  `.../student/gradebook`, `.../student/calendar`, `.../student/syllabus`).
+  `Content` → `.../student/pages` is the content index (not captured yet).
+- Each course also renders a **content-section list** — one `<a>` per
+  section (observed labels of the shape "Lectures", "Lab Instructions",
+  "Additional Content", a project page, a schedule page). These `<a>`
+  elements have **no `href` attribute at all** (client-rendered nav), so
+  the current capture records their visible text but not their target —
+  the section→page mapping is UNKNOWN from this data.
+- A content page's own body is a single heading plus an instructor-authored
+  rich-text block. Downloadable materials appear inline as `<a>` with
+  visible text exactly `Download` and href
+  `.../student/pages/plugins/Upload/fileDownload.php?fileId=<opaque>`
+  (classified `learning_suite`, same-origin). The **filename / material
+  title is not in the link** (no text beyond "Download", no `title`, no
+  `aria-label`) — it must come from surrounding body text, which the
+  generic link capture does not record.
+- The recon capture keeps link `text` and resolved `href`, and keeps
+  `aria-label` on interactive elements, but does **not** keep the `title`
+  attribute or any positional/heading context around a link.
+- The Schedule page renders as a heading with a "View: Table" control and
+  a "Get iCalendar Feed" / "Go to Combined Schedule" link — a
+  week/date-organized view (its row/table structure not yet analyzed).
+
+UNKNOWN for the Material Manifest: how the content-section `<a>` targets
+are encoded (needs their real attributes or a post-click URL); the content
+index page (`student/pages`); how a downloadable file's name/type is
+recoverable; the Schedule page's week/row structure; whether Box / YouTube
+/ direct-document links appear on content pages of these courses (only
+`Download` + BYU-internal links seen in this set).
+
 ## Internal vs. external links (VERIFIED)
 
 - Across all 634 captured links: 0 classified as `learning_suite`
