@@ -41,10 +41,10 @@ def test_render_has_dashboard_frontmatter_and_rows():
     assert "# Today" in md
     assert "| 1 | 0.82 |" in md
     assert "[[TryHackMe Registration\\|TryHackMe Registration]]" in md
-    assert (
-        "[[CYBER 467 - Cybersecurity Pen Test\\|CYBER 467 - Cybersecurity Pen Test]]"
-        in md
-    )
+    # Course is plain text, not a wikilink — Today linking every course makes
+    # the graph a hairball.
+    assert "| CYBER 467 - Cybersecurity Pen Test |" in md
+    assert "[[CYBER 467" not in md
     assert "due in 2 days" in md
 
 

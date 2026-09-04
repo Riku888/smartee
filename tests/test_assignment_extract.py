@@ -167,6 +167,36 @@ def test_view_submit_div_control_is_actionable():
     assert a.is_actionable is True
 
 
+def test_begin_lab_control_is_actionable():
+    # CYBER 467 Labs (2026-09-04) render a <div role="button"> "Begin", not
+    # "Submit" — ~16 such rows were dropped before "begin" was recognised.
+    row = _row(
+        control=_control("Begin", tag="div"),
+        descendants=_row_descendants(
+            title="Lab 3 - Enumeration",
+            due_datetime="2026-10-07T05:59:00.000Z",
+        ),
+    )
+    (a,) = extract_assignments(_observe(row)).assignments
+
+    assert a.status_label == "Begin"
+    assert a.is_actionable is True
+
+
+def test_opens_later_row_is_extracted_but_not_actionable():
+    row = _row(
+        control=_control("Opens Oct 7", tag="div"),
+        descendants=_row_descendants(
+            title="Lab 5 - Privilege Escalation",
+            due_datetime="2026-10-21T05:59:00.000Z",
+        ),
+    )
+    (a,) = extract_assignments(_observe(row)).assignments
+
+    assert a.title == "Lab 5 - Privilege Escalation"
+    assert a.is_actionable is False
+
+
 def test_closed_row_zero_earned():
     row = _row(
         control=_control("Closed", tag="div"),

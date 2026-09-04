@@ -257,9 +257,16 @@ of `smartee/course/discovery.py`.
   track the visible course correctly in the same run — usable as a
   confirmation signal, matched on the leading course-code token.
 - The row action control is a `<button>` (`Submit`) **or** a
-  `<div role="button">`; the latter serves both actions (`View/Submit`)
-  and terminal states (`Completed`). Actionability is read from the label,
-  not the tag (`smartee/assignment/extract._is_actionable`).
+  `<div role="button">`; the latter serves actions (`View/Submit`;
+  `Begin` for Labs / interactive exercises) and terminal states
+  (`Completed`). Actionability is read from the label, not the tag
+  (`smartee/assignment/extract._is_actionable`).
+- CYBER 467's assignments list mixed ~14 `Submit` rows with ~16 `Begin`
+  (Lab) rows and at least one `Opens <date>` (not-yet-open) row. The recon
+  candidate matcher originally recognised only `submit`-family labels, so
+  every Lab was silently dropped — it now also matches `begin` and an
+  `opens ` prefix. A `Begin` row is actionable; an `Opens <date>` row is a
+  real dated assignment that is not actionable yet.
 - Session persisted across two separate tool runs on the same day with the
   one persistent profile (no re-login, no Duo) — partial evidence for open
   question #2; longevity across days still untested.
