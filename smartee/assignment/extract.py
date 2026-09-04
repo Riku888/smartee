@@ -42,14 +42,17 @@ _WEIGHT_CELL_SUFFIX = "/div[6]"
 
 # The row's action/status control is either a real `<button>` (e.g. `Submit`)
 # or a `<div role="button">`; the latter is used both for actions
-# (`View/Submit`, verified 2026-09-04 on a live CYBER 467 capture) and for
-# terminal states (`Completed`). So actionability is read from the control's
-# word, not its tag: a label that offers a submission wins, a terminal state
-# loses, and a bare `<button>` with some other verb is taken as an action.
-_ACTIONABLE_LABEL_RE = re.compile(r"submit|check\s*off", re.IGNORECASE)
+# (`View/Submit`, `Begin` for Labs — verified 2026-09-04 on a live CYBER 467
+# capture) and for terminal states (`Completed`). So actionability is read
+# from the control's word, not its tag: a label that offers work wins, a
+# terminal or not-yet-open state loses, and a bare `<button>` with some other
+# verb is taken as an action.
+_ACTIONABLE_LABEL_RE = re.compile(r"submit|check\s*off|begin", re.IGNORECASE)
 _TERMINAL_LABEL_RE = re.compile(
     r"completed|closed|graded|past due|not available|unavailable", re.IGNORECASE
 )
+# "Opens Oct 7" — a real assignment with a due date, but locked until then.
+_LOCKED_LABEL_RE = re.compile(r"^\s*opens\b", re.IGNORECASE)
 
 
 @dataclass(frozen=True)
@@ -286,12 +289,12 @@ def _same_month_day_time(due_at_utc: str | None, wanted: datetime) -> bool:
 def _is_actionable(control: dict, status_label: str) -> bool:
     """Whether the row's control still asks the student to do something.
 
-    Reads the control's word first (`Submit` / `View/Submit` → yes;
-    `Completed` / `Closed` / `Graded` → no); falls back to "a real
-    `<button>` is an action" only when the label says neither.
+    Reads the control's word first (`Submit` / `View/Submit` / `Begin` → yes;
+    `Completed` / `Closed` / `Graded` / `Opens <date>` → no); falls back to
+    "a real `<button>` is an action" only when the label says neither.
     """
     label = status_label or ""
-    if _TERMINAL_LABEL_RE.search(label):
+    if _LOCKED_LABEL_RE.match(label) or _TERMINAL_LABEL_RE.search(label):
         return False
     if _ACTIONABLE_LABEL_RE.search(label):
         return True

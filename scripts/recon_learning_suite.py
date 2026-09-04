@@ -58,8 +58,22 @@ _ELEMENT_ATTRS_JS = (
 # capture for later human analysis — NOT a production selector contract, and no
 # control is ever clicked.
 ASSIGNMENT_ACTION_LABELS = frozenset(
-    {"submit", "view", "view/submit", "completed", "closed", "feedback", "check off"}
+    {
+        "submit",
+        "view",
+        "view/submit",
+        "completed",
+        "closed",
+        "feedback",
+        "check off",
+        # Labs / interactive exercises use "Begin", not "Submit" (verified
+        # 2026-09-04, CYBER 467 — ~16 Lab rows were previously missed).
+        "begin",
+    }
 )
+# A not-yet-open assignment shows "Opens <date>" where the control would be
+# (verified 2026-09-04, CYBER 467 Labs). Matched as a label prefix.
+ASSIGNMENT_LOCKED_LABEL_PREFIX = "opens "
 ROW_ANCESTOR_LEVELS = 4
 # One real course exposed 26 assignment rows (9 Closed + 17 Completed); the old
 # cap of 12 silently dropped the rest. Kept as a generous upper bound so one
@@ -294,7 +308,9 @@ def _assignment_row_candidates(page: Page, current_url: str) -> list[dict]:
         label = _norm_label(
             control.inner_text() or control.get_attribute("value") or ""
         )
-        if label not in ASSIGNMENT_ACTION_LABELS:
+        if label not in ASSIGNMENT_ACTION_LABELS and not label.startswith(
+            ASSIGNMENT_LOCKED_LABEL_PREFIX
+        ):
             continue
         try:
             chain = _ancestor_chain(control, ROW_ANCESTOR_LEVELS)

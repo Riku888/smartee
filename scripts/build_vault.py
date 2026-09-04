@@ -111,6 +111,15 @@ def main() -> None:
         action="store_true",
         help="also generate AI study notes (needs an Anthropic credential)",
     )
+    parser.add_argument(
+        "--today-horizon-days",
+        type=int,
+        default=14,
+        help=(
+            "Today.md shows actionable assignments due within this many days "
+            "(plus anything overdue). 0 or negative = no horizon, show all."
+        ),
+    )
     args = parser.parse_args()
 
     load_env(Path(__file__).resolve().parent.parent / ".env")
@@ -181,9 +190,11 @@ def main() -> None:
         if args.study_notes:
             _write_study_notes(bundle, args.vault)
 
-    ranked = rank_actionable(bundles, now=now)
+    horizon = args.today_horizon_days if args.today_horizon_days > 0 else None
+    ranked = rank_actionable(bundles, now=now, horizon_days=horizon)
     today = write_today(ranked, args.vault, generated_at=now)
-    print(f"{len(ranked)} actionable assignments -> {today.relative_to(args.vault)}")
+    scope = f"due within {horizon}d or overdue" if horizon else "all actionable"
+    print(f"{len(ranked)} on Today.md ({scope}) -> {today.relative_to(args.vault)}")
 
 
 if __name__ == "__main__":
