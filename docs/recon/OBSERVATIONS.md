@@ -234,10 +234,35 @@ of `smartee/course/discovery.py`.
   marker was observed. Not implemented; stays UNKNOWN (Hard Rule 2).
 - UNKNOWN: the interaction that expands the menu (no `aria-controls`, no
   handler captured); whether the menu lists all enrolled courses or only
-  the current term's; the behavior on following a course entry (not
-  navigated). A course delivered on an external platform had a switcher
-  href straight to that host (no `cid-` in path) — such entries are not
-  discovered by the current contract.
+  the current term's. A course delivered on an external platform had a
+  switcher href straight to that host (no `cid-` in path) — such entries
+  are not discovered by the current contract.
+
+### Fall 2026 live-run notes (2026-09-04, VERIFIED)
+
+- The switcher `<a>` href now renders as
+  `/.<token>/student/cid-<id>/student/home` — an extra `/student` before
+  `/cid-`. The URL Learning Suite actually serves for the assignments list
+  is `/.<token>/cid-<id>/student/home/assignments` (no `/student` before
+  `/cid-`). `smartee/collector/plan.assignments_url` normalises the former
+  to the latter.
+- The `cid-<id>` in `page.url` **lags one navigation behind** the visible
+  course: after clicking course B in the menu, the page showed B's
+  assignments and the switcher toggle said "Current course: B", while
+  `page.url` still carried A's `cid-`. So a bare `page.goto(<course URL>)`
+  does not reliably switch the assignments view — the Collector clicks the
+  course's entry in the open menu instead (D-023), and tags each capture
+  with the course discovery identified rather than re-reading the URL.
+- The switcher toggle's `aria-label` ("... Current course: <label>") *did*
+  track the visible course correctly in the same run — usable as a
+  confirmation signal, matched on the leading course-code token.
+- The row action control is a `<button>` (`Submit`) **or** a
+  `<div role="button">`; the latter serves both actions (`View/Submit`)
+  and terminal states (`Completed`). Actionability is read from the label,
+  not the tag (`smartee/assignment/extract._is_actionable`).
+- Session persisted across two separate tool runs on the same day with the
+  one persistent profile (no re-login, no Duo) — partial evidence for open
+  question #2; longevity across days still untested.
 
 ## Course-content patterns (VERIFIED / UNKNOWN)
 

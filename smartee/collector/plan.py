@@ -20,15 +20,22 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from urllib.parse import urlparse, urlunparse
 
-# The course-scoped prefix of an in-course URL path, e.g. the
-# `/.MjTJ/student/cid--tQDtJf5AeQC` of
-# `/.MjTJ/student/cid--tQDtJf5AeQC/student/home/dashboard`. The opaque token
-# after `cid-` is the durable course id (`smartee/course/discovery.py`).
-_COURSE_PREFIX_RE = re.compile(r"^(?P<prefix>.*?/student/cid-[A-Za-z0-9_-]+)(?:/|$)")
+# The session path token Learning Suite puts right after the host, e.g. the
+# `.RENB` of `/.RENB/cid-<id>/student/home/assignments`. Stable within one
+# login session, rotates between sessions. Optional — an unauthenticated or
+# pre-redirect URL has none.
+_SESSION_TOKEN_RE = re.compile(r"^/(\.[A-Za-z0-9_-]+)(?=/)")
+
+# The course id segment, `/cid-<opaque token>`. The token after `cid-` is the
+# durable course id (`smartee/course/discovery.py`). Learning Suite sometimes
+# renders course-switcher hrefs with a spurious `/student` before it
+# (`/.RENB/student/cid-<id>/...`); the URL it actually serves has none
+# (`/.RENB/cid-<id>/student/home/assignments`, verified 2026-09-04).
+_CID_RE = re.compile(r"/cid-([A-Za-z0-9_-]+)")
 
 # VERIFIED tail for a course's assignments list — observed directly at
-# `student/home` and `student/home/assignments` for a current-term course,
-# and present verbatim in some course-switcher hrefs (OBSERVATIONS.md).
+# `student/home` and `student/home/assignments` for a current-term course
+# (OBSERVATIONS.md).
 _ASSIGNMENTS_TAIL = "student/home/assignments"
 
 # Hosts that mean "the session is gone, a human must log in" — never a page
@@ -86,26 +93,67 @@ def is_auth_wall(url: str) -> bool:
     return "/cas/login" in parsed.path
 
 
+def _compose_assignments_url(
+    scheme: str, netloc: str, token: str | None, course_id: str
+) -> str:
+    """Build the canonical `/.<token>/cid-<id>/student/home/assignments` URL —
+    no `/student` before `cid-` (verified 2026-09-04)."""
+    token_segment = f"/{token}" if token else ""
+    cid = course_id if course_id.startswith("cid-") else f"cid-{course_id}"
+    path = f"{token_segment}/{cid}/{_ASSIGNMENTS_TAIL}"
+    return urlunparse((scheme, netloc, path, "", "", ""))
+
+
 def assignments_url(in_course_url: str) -> str | None:
     """The assignments-list URL for the course `in_course_url` belongs to.
 
-    Takes the course-scoped prefix of a URL the browser actually resolved to
-    (`…/student/cid-<id>`) and appends the verified `student/home/assignments`
-    tail, keeping the original scheme and host. Returns None when the URL has
-    no `/student/cid-<id>/` segment — the caller then skips that course
-    rather than guessing.
+    Reads the session token (if any) and the `/cid-<id>` segment from a URL
+    the browser resolved to, and rebuilds the canonical
+    `/.<token>/cid-<id>/student/home/assignments` — normalising away any
+    spurious `/student` Learning Suite renders before `/cid-` in switcher
+    hrefs. Returns None when the URL is a login wall or carries no
+    `/cid-<id>` segment, so the caller skips that course rather than guessing.
     """
     try:
         parsed = urlparse(in_course_url)
     except ValueError:
         return None
-    if not parsed.scheme or not parsed.hostname:
+    if not parsed.scheme or not parsed.hostname or is_auth_wall(in_course_url):
         return None
-    match = _COURSE_PREFIX_RE.match(parsed.path)
-    if match is None:
+    cid_match = _CID_RE.search(parsed.path)
+    if cid_match is None:
         return None
-    path = f"{match.group('prefix')}/{_ASSIGNMENTS_TAIL}"
-    return urlunparse((parsed.scheme, parsed.netloc, path, "", "", ""))
+    token_match = _SESSION_TOKEN_RE.match(parsed.path)
+    return _compose_assignments_url(
+        parsed.scheme,
+        parsed.netloc,
+        token_match.group(1) if token_match else None,
+        cid_match.group(1),
+    )
+
+
+def assignments_url_from_session(session_url: str, course_id: str) -> str | None:
+    """Compose a course's assignments-list URL from any authenticated Learning
+    Suite URL (for its scheme / host / session token) plus a `course_id` from
+    discovery. The most reliable derivation — discovery's `course_id` is the
+    durable `cid-` token and the session URL carries the current token.
+    Returns None if `session_url` is unusable or a login wall.
+    """
+    try:
+        parsed = urlparse(session_url)
+    except ValueError:
+        return None
+    if not parsed.scheme or not parsed.hostname or is_auth_wall(session_url):
+        return None
+    if not course_id:
+        return None
+    token_match = _SESSION_TOKEN_RE.match(parsed.path)
+    return _compose_assignments_url(
+        parsed.scheme,
+        parsed.netloc,
+        token_match.group(1) if token_match else None,
+        course_id,
+    )
 
 
 def classify_snapshot(snapshot: Mapping[str, object]) -> str:
@@ -117,6 +165,9 @@ def classify_snapshot(snapshot: Mapping[str, object]) -> str:
     if isinstance(url, str) and is_auth_wall(url):
         return SNAPSHOT_NOT_LOGGED_IN
     if snapshot.get("assignments_component_present"):
+        return SNAPSHOT_ASSIGNMENTS_LIST
+    candidates = snapshot.get("assignment_row_candidates")
+    if isinstance(candidates, list) and candidates:
         return SNAPSHOT_ASSIGNMENTS_LIST
     headings = snapshot.get("headings")
     if isinstance(headings, list):

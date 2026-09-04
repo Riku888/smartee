@@ -150,6 +150,23 @@ def test_completed_row_graded_is_not_actionable():
     assert a.grade_weight_percent == 6.67
 
 
+def test_view_submit_div_control_is_actionable():
+    # A live CYBER 467 capture (2026-09-04) rendered "TryHackMe Registration"
+    # with a <div role="button"> labelled "View/Submit" — an action, not a
+    # terminal state, even though it is not a real <button>.
+    row = _row(
+        control=_control("View/Submit", tag="div"),
+        descendants=_row_descendants(
+            title="TryHackMe Registration",
+            due_datetime="2026-09-09T19:00:00.000Z",
+        ),
+    )
+    (a,) = extract_assignments(_observe(row)).assignments
+
+    assert a.status_label == "View/Submit"
+    assert a.is_actionable is True
+
+
 def test_closed_row_zero_earned():
     row = _row(
         control=_control("Closed", tag="div"),

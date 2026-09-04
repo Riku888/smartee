@@ -8,6 +8,9 @@ These remain `UNKNOWN` until tested against the actual environment. Source of tr
    Quiz, grade, and discussion page structure remain fully UNKNOWN
    (not yet visited), so this item stays open.
 2. Session persistence behavior under BYU authentication and Duo.
+   Partial: the persistent profile survived two separate tool runs on
+   2026-09-04 with no re-login and no Duo. Longevity across days/weeks
+   still UNKNOWN.
 3. Whether specific external course systems allow stable authorized browser-session reuse.
 4. Availability and format of lecture transcripts.
 5. Best parsing strategy for each document type encountered in real courses.

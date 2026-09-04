@@ -26,5 +26,6 @@ Accepted architecture decisions for the current baseline. Source of truth is `AR
 | D-020 | GitHub issues + acceptance criteria + fixtures are the basis for AI-assisted development. |
 | D-021 | Claude Code project memory stays concise; full design remains in canonical docs. |
 | D-022 | Model routing is eval-driven and provider-configurable. |
+| D-023 | The read-only Collector may click course entries in the course-switcher menu (not only the toggle); a bare URL `goto` does not switch the assignments view. Still no submission/row/detail control is ever clicked. |
 
 New decisions should be appended here with the next sequential ID as they're made.
