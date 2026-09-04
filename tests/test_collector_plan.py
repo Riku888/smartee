@@ -17,11 +17,17 @@ from smartee.collector.plan import (
 
 # The URL Learning Suite actually serves — session token straight after the
 # host, `/cid-<id>` with no `/student` before it (verified 2026-09-04).
-_DASHBOARD = "https://learningsuite.byu.edu/.MjTJ/cid--tQDtJf5AeQC/student/home/dashboard"
-_ASSIGNMENTS = "https://learningsuite.byu.edu/.MjTJ/cid--tQDtJf5AeQC/student/home/assignments"
+_DASHBOARD = (
+    "https://learningsuite.byu.edu/.MjTJ/cid--tQDtJf5AeQC/student/home/dashboard"
+)
+_ASSIGNMENTS = (
+    "https://learningsuite.byu.edu/.MjTJ/cid--tQDtJf5AeQC/student/home/assignments"
+)
 # The shape a course-switcher href renders with — a spurious `/student`
 # before `/cid-`. `assignments_url` must normalise it to `_ASSIGNMENTS`.
-_SWITCHER_HREF = "https://learningsuite.byu.edu/.MjTJ/student/cid--tQDtJf5AeQC/student/home"
+_SWITCHER_HREF = (
+    "https://learningsuite.byu.edu/.MjTJ/student/cid--tQDtJf5AeQC/student/home"
+)
 
 
 class TestIsAuthWall:

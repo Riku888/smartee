@@ -404,7 +404,9 @@ def main() -> None:
             persist()
 
             kind = snapshot.get("collector_snapshot_kind")
-            confirmed = "" if snapshot.get("collector_course_confirmed") else " (unconfirmed)"
+            confirmed = (
+                "" if snapshot.get("collector_course_confirmed") else " (unconfirmed)"
+            )
             if kind == SNAPSHOT_NOT_LOGGED_IN:
                 print("  Session lost mid-run. Stopping and saving what we have.")
                 break
