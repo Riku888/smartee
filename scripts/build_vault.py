@@ -48,7 +48,13 @@ _SLUG_UNSAFE = re.compile(r"[^a-z0-9]+")
 
 
 def _course_label(snapshot: dict) -> str | None:
-    """The course the switcher shows as current, or None if not present."""
+    """The course a capture belongs to. The Collector tags each snapshot with
+    the course discovery identified (`collector_course_label`) — authoritative,
+    since the switcher's own "Current course" text lags a navigation behind.
+    Falls back to that switcher text for manually captured snapshots."""
+    tagged = (snapshot.get("collector_course_label") or "").strip()
+    if tagged:
+        return tagged
     for element in snapshot.get("interactive_elements", []):
         aria = (element.get("attributes") or {}).get("aria-label", "")
         if aria.startswith(_CURRENT_COURSE_PREFIX):

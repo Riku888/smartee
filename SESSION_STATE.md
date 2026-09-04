@@ -12,14 +12,20 @@ pipeline → Obsidian vault, AI study notes per assignment with a captured
 description, and a cross-course `00 Dashboard/Today.md` priority view.
 Runs via `scripts/build_vault.py --vault <path> [--study-notes]`.
 
-Phase 2 (Collector) has started — **assignments-only slice built, not yet
-run live**. `scripts/collect_learning_suite.py`: after the human logs in,
-it discovers courses from the switcher menu and captures each course's
-assignments list, writing the same `recon-<ts>.json`. Needs one real
-capture session to validate (does the switcher click expand the menu? do
-the derived assignment URLs resolve?). Still to come in Phase 2: content
-page nav (blocked on hrefless section links), material downloads, diff
-detection.
+Phase 2 (Collector) — **ran live 2026-09-04 (Fall 2026), reworked, not yet
+re-validated**. `scripts/collect_learning_suite.py`: after the human logs
+in, it discovers courses from the switcher menu, then for each course
+**clicks that course's entry in the menu** (D-023) and captures its
+assignments list, writing the same `recon-<ts>.json`. First live run
+proved: discovery works (4 courses); but jumping straight to a derived
+`/assignments` URL 404s — the switcher href renders `/.token/student/cid-…`
+while the URL LS serves is `/.token/cid-…/student/home/assignments`, and
+the `cid-` token in the URL is not authoritative anyway (the SPA does not
+switch course on a bare `goto`). Rework: menu-click navigation, snapshot
+tagged with `collector_course_id/label`, `assignments_url*` normalises the
+path. Needs one more live run to confirm the click switches the view.
+Still to come in Phase 2: content page nav (blocked on hrefless section
+links), material downloads, diff detection.
 
 ## Deterministic pipeline (verified against real captures, 5 courses)
 
@@ -177,7 +183,12 @@ navigation tool, not an unattended loop — it still ends in a human-run
 
 ## Operational state
 
-`main` is at PR #30 (Today dashboard; #29 had merged into a stale base and
-was re-landed as #30). Open PR: `feat/collector-assignments` — Collector
-v1. Branch every PR off `main` — never stack a PR on another feature
-branch (GitHub won't retarget it and it can merge into a dead branch).
+`main` is at PR #32 (Collector auth/SPA-render/discovery fixes). Open work:
+`feat/collector-switcher-nav` — menu-click navigation (D-023) + the
+`View/Submit` actionability fix + `assignments_url` path normalisation.
+Branch every PR off `main` — never stack a PR on another feature branch
+(GitHub won't retarget it and it can merge into a dead branch).
+
+Real vault regenerated 2026-09-04 from a manual capture: CYBER 467 (14),
+ME EN 475 (10), A HTG 100 (3, incomplete — aggregate page only), PHSCS 121
+(0, not captured). `Today.md` ranks TryHackMe Registration (9/9) first.

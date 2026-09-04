@@ -2327,6 +2327,7 @@ The following decisions are accepted for the current baseline:
 | D-020 | GitHub issues + acceptance criteria + fixtures are the basis for AI-assisted development. |
 | D-021 | Claude Code project memory stays concise; full design remains in canonical docs. |
 | D-022 | Model routing is eval-driven and provider-configurable. |
+| D-023 | The read-only Collector may click course entries in the course-switcher menu, not just the toggle — a bare URL `goto` does not switch the SPA's assignments view. It still clicks no submission, row, or detail control. |
 
 ---
 

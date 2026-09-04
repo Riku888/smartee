@@ -7,11 +7,13 @@ it discovers every course from the course-switcher menu and captures each
 course's assignments list, writing the same `recon-<ts>.json` that
 `scripts/build_vault.py` consumes.
 
-Guardrails (SECURITY.md, ARCHITECTURE §8.2 / §18.2 / §20.4):
+Guardrails (SECURITY.md, ARCHITECTURE §8.2 / §18.2 / §20.4, D-023):
 
-- Read-only. The ONLY control it ever clicks is the course-switcher toggle
-  (to reveal the course list). It never clicks Submit / Check off / any
-  row control, never fills a form, never downloads.
+- Read-only. The only elements it ever clicks are the course-switcher
+  toggle and a course entry inside that menu (`<a href*="cid-<id>">`) — the
+  reliable way to move the SPA between courses, since a bare URL `goto`
+  does not switch the assignments view. It never clicks Submit / Check off
+  / any row or detail control, never fills a form, never downloads.
 - Authentication stays with the human. The tool never sees BYU / Duo
   credentials; it pauses and waits when it lands on a login wall.
 - Hard budgets (max courses / pages / wall-clock) enforced in code.
@@ -24,6 +26,7 @@ Guardrails (SECURITY.md, ARCHITECTURE §8.2 / §18.2 / §20.4):
 
 import argparse
 import json
+import re
 import sys
 import time
 from datetime import UTC, datetime
@@ -40,12 +43,24 @@ from smartee.collector import (
     SNAPSHOT_ASSIGNMENTS_LIST,
     SNAPSHOT_NOT_LOGGED_IN,
     CollectionBudget,
-    assignments_url,
+    assignments_url_from_session,
     classify_snapshot,
     is_auth_wall,
     sleep_between_navigations,
 )
-from smartee.course.discovery import CourseMenuObservation, discover_courses
+from smartee.course.discovery import (
+    CourseMenuObservation,
+    DiscoveredCourse,
+    discover_courses,
+)
+
+# Learning Suite shows the active course as
+# `… Current course: <label>` on the switcher toggle's aria-label.
+_CURRENT_COURSE_PREFIX = "current course: "
+# Leading course-code token of a label ("CYBER 467 (001) - …" → "CYBER 467"),
+# used to match a discovery label against the switcher's current-course text
+# when the two render the surrounding detail differently.
+_COURSE_CODE_RE = re.compile(r"^([A-Za-z][A-Za-z&]*(?:\s+[A-Za-z&]+)*\s+\d{2,4})")
 
 # The Course List page — carries the course-selection menu and, when it is
 # open, the course entry links discovery reads.
@@ -128,9 +143,8 @@ def _wait_for_login(page: Page, start_url: str) -> bool:
 
 
 def _expand_course_switcher(page: Page) -> None:
-    """Click the switcher toggle once so the course <a> entries render. This
-    is the only click the Collector performs. If it does not work, the caller
-    falls back to asking the human to open the menu."""
+    """Click the switcher toggle so the course <a> entries render. If it does
+    not work, the caller falls back to asking the human to open the menu."""
     try:
         toggle = page.query_selector(_SWITCHER_TOGGLE)
         if toggle is None:
@@ -141,6 +155,58 @@ def _expand_course_switcher(page: Page) -> None:
             page.wait_for_timeout(1_000)
     except PlaywrightError as exc:
         print(f"  (could not expand the course switcher: {str(exc).splitlines()[0]})")
+
+
+def _course_code(label: str) -> str:
+    """The leading course-code token of a label, lowercased ("CYBER 467 (001)
+    - …" → "cyber 467"). Empty when the label has no recognisable code."""
+    match = _COURSE_CODE_RE.match(label.strip())
+    return (match.group(1) if match else "").strip().lower()
+
+
+def _current_course_label(page: Page) -> str:
+    """What the switcher toggle says the active course is, or ''."""
+    try:
+        toggle = page.query_selector(_SWITCHER_TOGGLE)
+        aria = (toggle.get_attribute("aria-label") or "") if toggle else ""
+    except PlaywrightError:
+        return ""
+    lowered = aria.lower()
+    marker = lowered.find(_CURRENT_COURSE_PREFIX)
+    return aria[marker + len(_CURRENT_COURSE_PREFIX) :].strip() if marker >= 0 else ""
+
+
+def _on_course(page: Page, course: DiscoveredCourse) -> bool:
+    """True when the switcher shows `course` as the current course."""
+    code = _course_code(course.label)
+    return bool(code) and code in _current_course_label(page).lower()
+
+
+def _switch_to_course(page: Page, course: DiscoveredCourse) -> bool:
+    """Move the SPA to `course` by clicking its entry in the course-switcher
+    menu. A bare URL `goto` does not switch the assignments view (the URL
+    `cid-` token is not authoritative — SESSION_STATE / OBSERVATIONS.md), so
+    the menu click is the reliable path. The only elements this ever clicks
+    are the switcher toggle and a course-scoped `<a href*="cid-<id>">` — never
+    a submission or row control (SECURITY.md, D-023)."""
+    selector = f'a[href*="cid-{course.course_id}"]'
+    for attempt in (1, 2):
+        _expand_course_switcher(page)
+        entry = page.query_selector(selector)
+        if entry is None:
+            print(f"  (no switcher entry for {course.label!r})")
+            return False
+        try:
+            entry.click()
+        except PlaywrightError as exc:
+            print(f"  (could not click course entry: {str(exc).splitlines()[0]})")
+            return False
+        _settle(page)
+        _await_content(page)
+        sleep_between_navigations()
+        if _on_course(page, course) or attempt == 2:
+            break
+    return _on_course(page, course)
 
 
 def _cid_link_count(snapshot: dict) -> int:
@@ -206,42 +272,51 @@ def _discover(
     return manual if len(manual) >= len(courses) else courses
 
 
-def _target_assignments_url(page: Page, entry_url: str) -> str | None:
-    """The assignments-list URL for a course. Prefer deriving it from the
-    switcher href; if that href is not course-scoped, navigate to it and
-    derive from where the browser actually lands."""
-    direct = assignments_url(entry_url)
-    if direct is not None:
-        return direct
-    _goto(page, entry_url)
-    return assignments_url(page.url)
+def _capture_here(page: Page) -> dict | None:
+    """Snapshot the current page, tolerating a transient DOM error."""
+    _settle(page)
+    _await_content(page)
+    sleep_between_navigations()
+    try:
+        return capture_page(page)
+    except (PlaywrightError, RuntimeError) as exc:
+        print(f"  (capture failed: {str(exc).splitlines()[0]})")
+        return None
 
 
-def _capture_assignments(page: Page, url: str) -> dict | None:
-    """Navigate to `url` and capture it, with one reload retry if the first
-    capture is not an assignments list (same-URL-different-DOM)."""
-    for attempt in (1, 2):
-        try:
-            page.goto(url, wait_until="domcontentloaded", timeout=_NAV_TIMEOUT_MS)
-        except PlaywrightTimeout:
-            pass
-        except PlaywrightError as exc:
-            print(f"  (navigation failed: {str(exc).splitlines()[0]})")
-            return None
-        _settle(page)
-        _await_content(page)
-        sleep_between_navigations()
-        try:
-            snapshot = capture_page(page)
-        except (PlaywrightError, RuntimeError) as exc:
-            print(f"  (capture failed: {str(exc).splitlines()[0]})")
-            return None
-        kind = classify_snapshot(snapshot)
-        if kind in (SNAPSHOT_ASSIGNMENTS_LIST, SNAPSHOT_NOT_LOGGED_IN) or attempt == 2:
-            snapshot["collector_snapshot_kind"] = kind
-            return snapshot
-        print(f"  (got '{kind}', retrying once)")
-    return None
+def _goto_assignments_tab(page: Page, course: DiscoveredCourse) -> None:
+    """Once the SPA is on the course, make sure we are on its assignments
+    view. The course home already renders the assignments list, but the
+    explicit sub-URL is steadier; derive it from the live session URL +
+    course id, never from the unreliable switcher href."""
+    target = assignments_url_from_session(page.url, course.course_id)
+    if target and target.split("?")[0] != page.url.split("?")[0]:
+        _goto(page, target)
+
+
+def _collect_course(page: Page, course: DiscoveredCourse) -> dict | None:
+    """Switch to `course` via the menu, land on its assignments list, capture.
+    The snapshot is tagged with the course discovery identified so attribution
+    never depends on re-reading the (lagging) switcher label later."""
+    switched = _switch_to_course(page, course)
+    if not switched:
+        print("  (switcher did not confirm the course; capturing anyway)")
+    _goto_assignments_tab(page, course)
+
+    snapshot = _capture_here(page)
+    if snapshot is None:
+        return None
+    if not snapshot.get("assignment_row_candidates") and switched:
+        # One reopen — the list sometimes paints a beat after the shell.
+        _switch_to_course(page, course)
+        _goto_assignments_tab(page, course)
+        snapshot = _capture_here(page) or snapshot
+
+    snapshot["collector_course_id"] = course.course_id
+    snapshot["collector_course_label"] = course.label
+    snapshot["collector_course_confirmed"] = _on_course(page, course)
+    snapshot["collector_snapshot_kind"] = classify_snapshot(snapshot)
+    return snapshot
 
 
 def main() -> None:
@@ -321,13 +396,7 @@ def main() -> None:
                 break
 
             print(f"- {course.label}")
-            target = _target_assignments_url(page, course.entry_url)
-            if target is None:
-                print("  (no course-scoped URL; skipped)")
-                courses_done += 1
-                continue
-
-            snapshot = _capture_assignments(page, target)
+            snapshot = _collect_course(page, course)
             courses_done += 1
             if snapshot is None:
                 continue
@@ -335,15 +404,18 @@ def main() -> None:
             persist()
 
             kind = snapshot.get("collector_snapshot_kind")
+            confirmed = (
+                "" if snapshot.get("collector_course_confirmed") else " (unconfirmed)"
+            )
             if kind == SNAPSHOT_NOT_LOGGED_IN:
                 print("  Session lost mid-run. Stopping and saving what we have.")
                 break
             if kind == SNAPSHOT_ASSIGNMENTS_LIST:
                 lists_captured += 1
                 rows = len(snapshot.get("assignment_row_candidates", []))
-                print(f"  captured assignments list ({rows} row candidates)")
+                print(f"  captured assignments list ({rows} row candidates){confirmed}")
             else:
-                print(f"  captured '{kind}' (kept for analysis)")
+                print(f"  captured '{kind}' (kept for analysis){confirmed}")
 
         context.close()
 
